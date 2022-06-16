@@ -1,5 +1,6 @@
-FROM hexpm/elixir:1.13.4-erlang-25.0-alpine-3.15.4 AS builder
+ARG MIX_ENV
 
+FROM hexpm/elixir:1.13.4-erlang-25.0-alpine-3.15.4 AS builder
 ARG MIX_ENV
 ARG REPO
 ARG TAG
@@ -15,7 +16,8 @@ RUN mix local.hex --force \
  && MIX_ENV=${MIX_ENV} mix release
 
 FROM alpine:3.15.4
+ARG MIX_ENV=${MIX_ENV}
 RUN apk update && apk upgrade && apk add wget curl openssl ncurses libstdc++
-COPY --from=builder src/_build/prod/rel/${REPO} /${REPO}
+COPY --from=builder src/_build/${MIX_ENV}/rel/${REPO} /${REPO}
 
 ENTRYPOINT ["/load/bin/load", "start"]
