@@ -1,10 +1,10 @@
 defmodule Load.WSClient do
-
   use GenServer, restart: :transient
 
   require Logger
 
-  def start_link(glob, args \\ []), do: GenServer.start_link(__MODULE__, glob ++ args |> Enum.into(%{}))
+  def start_link(glob, args \\ []),
+    do: GenServer.start_link(__MODULE__, (glob ++ args) |> Enum.into(%{}))
 
   @impl true
   def init(args) do
@@ -15,7 +15,12 @@ defmodule Load.WSClient do
 
   @impl true
   def handle_info(:connect, state) do
-    {:ok, conn} = :gun.open(state.address |> to_charlist(), _port = 8888, %{retry: 0, ws_opts: %{keepalive: :timer.seconds(20), silence_pings: true} })
+    {:ok, conn} =
+      :gun.open(state.address |> to_charlist(), _port = 8888, %{
+        retry: 0,
+        ws_opts: %{keepalive: :timer.seconds(20), silence_pings: true}
+      })
+
     {:ok, _transport} = :gun.await_up(conn)
     stream_ref = :gun.ws_upgrade(conn, "/ws" |> to_charlist())
     {:noreply, state |> Map.put(:conn, conn) |> Map.put(:stream_ref, stream_ref)}
@@ -26,12 +31,17 @@ defmodule Load.WSClient do
     case Jason.decode!(message) do
       %{"ok" => "ok"} ->
         Logger.info("cool good response")
+
       %{"stats" => stats} ->
         :pg.get_local_members(Global)
-        |> Enum.each(&send(&1, {:update, stats |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)}))
+        |> Enum.each(
+          &send(&1, {:update, stats |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)})
+        )
+
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end
+
     {:noreply, state}
   end
 
@@ -73,7 +83,7 @@ defmodule Load.WSClient do
     if address == :all or address == state.address do
       :ok = :gun.ws_send(state.conn, stream_ref, {:text, Jason.encode!(message)})
     end
+
     {:noreply, state}
   end
-
 end

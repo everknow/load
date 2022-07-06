@@ -1,5 +1,4 @@
 defmodule Example.EchoSim do
-
   @behaviour Load.Sim
 
   require Logger
@@ -8,7 +7,7 @@ defmodule Example.EchoSim do
   def init do
     %{
       host: Application.get_env(:net_load, :host, "localhost") |> String.to_charlist(),
-      port: Application.get_env(:net_load, :port, "8888")  |> String.to_integer(),
+      port: Application.get_env(:net_load, :port, "8888") |> String.to_integer(),
       opts: %{protocols: [:http], transport: :tcp}
     }
   end
@@ -19,8 +18,5 @@ defmodule Example.EchoSim do
     {:ok, res_payload, state} = Load.Worker.hit("POST /example/echo", [], payload, state)
     Logger.debug("sim received back #{res_payload}")
     state
-
   end
-
-
 end

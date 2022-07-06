@@ -1,5 +1,4 @@
 defmodule Load.WSHandler do
-
   @behaviour :cowboy_websocket
 
   require Logger
@@ -27,26 +26,36 @@ defmodule Load.WSHandler do
         |> Enum.each(fn {:undefined, pid, :worker, [Load.Worker]} ->
           DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
         end)
+
         {:stop, state}
+
       %{"command" => "scale", "count" => count} ->
-        count = Supervisor.which_children(Load.Worker.Supervisor)
-        |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
-          acc = acc - 1
-          if acc < 0 do
-            DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
-          end
-          acc
-        end)
+        count =
+          Supervisor.which_children(Load.Worker.Supervisor)
+          |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
+            acc = acc - 1
+
+            if acc < 0 do
+              DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+            end
+
+            acc
+          end)
+
         1..count
         |> Enum.each(fn _ ->
-          DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
+          DynamicSupervisor.start_child(
+            Load.Worker.Supervisor,
+            {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]}
+          )
         end)
+
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
       _ ->
         {:reply, {:text, "invalid"}, state}
         # IO.puts("received #{message}")
     end
-
   end
 
   @impl true
@@ -67,5 +76,4 @@ defmodule Load.WSHandler do
     :pg.leave(WS, self())
     :ok
   end
-
 end

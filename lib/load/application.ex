@@ -4,7 +4,6 @@ defmodule Load.Application do
   @impl true
   @spec start(any, any) :: {:error, any} | {:ok, pid}
   def start(_type, _args) do
-
     children = [
       Plug.Cowboy.child_spec(
         scheme: :http,
@@ -14,13 +13,17 @@ defmodule Load.Application do
           dispatch: dispatch()
         ]
       ),
-      {DynamicSupervisor, strategy: :one_for_one, name: Load.Worker.Supervisor}, #, extra_arguments: [[a: :b]]}
+      # , extra_arguments: [[a: :b]]}
+      {DynamicSupervisor, strategy: :one_for_one, name: Load.Worker.Supervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Connection.Supervisor},
       %{id: :pg, start: {:pg, :start_link, []}},
       %{id: LocalStats, start: {GenServer, :start_link, [Stats, %{group: Local}, []]}},
-      %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, []]}}
-
+      %{
+        id: GlobalStats,
+        start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, []]}
+      }
     ]
+
     opts = [strategy: :one_for_one, name: Load.Supervisor]
     Supervisor.start_link(children, opts)
   end
@@ -31,9 +34,8 @@ defmodule Load.Application do
        [
          {"/ws", Load.WSHandler, []},
          {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}}
-        #  {:_, Plug.Cowboy.Handler, {Example.EchoRouter, []}}
+         #  {:_, Plug.Cowboy.Handler, {Example.EchoRouter, []}}
        ]}
     ]
   end
-
 end
