@@ -27,7 +27,7 @@ defmodule Stats do
 
   @impl true
   def handle_info({:update, stats}, state) do
-    Map.merge(state, stats, fn _k, v1, v2 -> v1 + v2 end)
+    state = Map.merge(state, stats, fn _k, v1, v2 -> v1 + v2 end)
 
     state =
       case state.group do
