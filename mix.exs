@@ -7,7 +7,6 @@ defmodule Load.MixProject do
         {:ok, v} -> String.trim(v)
         _ -> "0.0.0"
       end
-
     [
       app: :load,
       version: vsn,
