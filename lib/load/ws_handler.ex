@@ -1,21 +1,30 @@
 defmodule Load.WSHandler do
-
   @behaviour :cowboy_websocket
 
   require Logger
 
   @impl true
   def init(req, _state) do
+    Logger.info("WSHandler - init")
     state = %{caller: req.pid, transport: :http, protocols: [:ilp_packet]}
-    :pg.join(WS, self())
+
     Process.send_after(state.caller, :ping, 5000)
+
     {:cowboy_websocket, req, state}
+  end
+
+  @impl true
+  def websocket_init(state) do 
+    :pg.join(WS, self())
+
+    {:ok, state}
   end
 
   @impl true
   def websocket_handle(:ping, state) do
     Process.send_after(state.caller, :ping, 5000)
-    Logger.debug("pong")
+    Logger.debug("WSHandler - Reply to ping: pong")
+
     {:ok, state}
   end
 
@@ -27,7 +36,9 @@ defmodule Load.WSHandler do
         |> Enum.each(fn {:undefined, pid, :worker, [Load.Worker]} ->
           DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
         end)
+
         {:stop, state}
+
       %{"command" => "scale", "count" => count} ->
         count = Supervisor.which_children(Load.Worker.Supervisor)
         |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
@@ -37,11 +48,14 @@ defmodule Load.WSHandler do
           end
           acc
         end)
+
         1..count
         |> Enum.each(fn _ ->
           DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
         end)
+
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
       _ ->
         {:reply, {:text, "invalid"}, state}
         # IO.puts("received #{message}")
@@ -55,15 +69,18 @@ defmodule Load.WSHandler do
     {:reply, {:text, Jason.encode!(%{stats: stats})}, state}
   end
 
-  @impl true
+  def websocket_info(:ping, state) do 
+    {:ok, state}
+  end
+
   def websocket_info(message, state) do
-    Logger.warn("received  message:  #{inspect(message)}")
+    Logger.warn("received unknown message:  #{inspect(message)}")
     {:ok, state}
   end
 
   @impl true
-  def terminate(_reason, _req, _state) do
-    Logger.info("terminated")
+  def terminate(reason, _req, _state) do
+    Logger.info("WSHandler - Terminated | Reason: #{inspect(reason)}")
     :pg.leave(WS, self())
     :ok
   end

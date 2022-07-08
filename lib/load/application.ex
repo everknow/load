@@ -4,7 +4,6 @@ defmodule Load.Application do
   @impl true
   @spec start(any, any) :: {:error, any} | {:ok, pid}
   def start(_type, _args) do
-
     children = [
       Plug.Cowboy.child_spec(
         scheme: :http,
@@ -18,7 +17,7 @@ defmodule Load.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Connection.Supervisor},
       %{id: :pg, start: {:pg, :start_link, []}},
       %{id: LocalStats, start: {GenServer, :start_link, [Stats, %{group: Local}, []]}},
-      %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, []]}}
+      %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: %{latency: %{avg: nil, max: nil, min: nil}}}, []]}}
 
     ]
     opts = [strategy: :one_for_one, name: Load.Supervisor]

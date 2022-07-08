@@ -9,10 +9,14 @@ defmodule Load do
       end)
   end
 
+  @doc """
+  Start WSClient to allow web socket communications.
+  """
   def connect(addresses \\ ["localhost"]) when is_list(addresses) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.reduce(MapSet.new(addresses), fn {:undefined, pid, :worker, [Load.WSClient]}, acc ->
       address = GenServer.call(pid, :get_address)
+
       if MapSet.member?(acc, address) do
         MapSet.delete(acc, address)
       else
@@ -40,7 +44,7 @@ defmodule Load do
     <>"| Commands available:\n"
     <>"| Load.scale  (count, :all | address) - scale to count workers on selected nodes\n"
     <>"| Load.connect(addresses)             - connect to addresses\n"
-    <>"| Load:i() - print current stats\n"
+    <>"| Load:q() - print current stats\n"
     <>"+-----------------------------------------------"
     )
 

@@ -43,11 +43,20 @@ defmodule Load.Worker do
   end
 
 
-  def handle_info(:run, %{sim: sim, interval_ms: interval_ms} = state) do
-    state = state
-    |> sim.run()
+  def handle_info(:run, %{sim: sim, interval_ms: interval_ms, latencies: latencies} = state) do
+    start_time = System.monotonic_time
+
+    state = sim.run(state)
+
+    latency_ms = (System.monotonic_time - start_time) / 1000000 |> trunc()
+
+    Logger.debug("Request latency: #{latency_ms} ms")
+
+    state = %{state | latencies: [latency_ms] ++ latencies}
     |> Stats.maybe_update()
-    Process.send_after(self(), :run, interval_ms)
+
+    Process.send_after(self(), :run, (interval_ms - latency_ms))
+    
     {:noreply, state}
   end
 
@@ -68,7 +77,9 @@ defmodule Load.Worker do
             g = :gun.await(conn, post_ref, @req_timeout)
             {:ok, resp_payload} = handle_http_result(g, post_ref, state)
             state = Map.put(state, :stats_entries, stats_entries + 1)
+            
             {:ok, resp_payload, state}
+
           _ ->
             {:error , "http tcp #{verb} not_implemented"}
         end
