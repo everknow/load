@@ -30,10 +30,11 @@ defmodule Stats do
   @impl true
   def handle_info({:update, stats}, state) do
     Logger.debug("Updating stats in #{state.group}")
+    Logger.debug("Stats last_ms: #{stats.last_ms} | State last_ms: #{state.last_ms}")
 
     state =
       Map.merge(state, stats, fn
-        :last_ms, _, new_value -> new_value 
+        :last_ms, current_value, new_value -> if new_value > current_value, do: new_value, else: current_value  
         _key, old_value, increment when is_number(old_value) -> old_value + increment
         _key, old_value, increment when is_list(old_value) -> increment ++ old_value
       end)
@@ -51,19 +52,29 @@ defmodule Stats do
     {:reply, state |> Map.take([:history | Map.keys(Stats.empty())]), state}
   end
 
+  defp get_object_based_on_dest(dest) do 
+    case dest do 
+      Local -> :worker
+      WS -> :local
+      nil -> :global
+    end
+  end
+
   @doc """
   Update worker state and Local and Global stats
   """
   def maybe_update(state, dest \\ Local) do
-    Logger.debug("maybe_update - dest: #{dest}")
+    object = get_object_based_on_dest(dest)
+
+    Logger.debug("#{object} - maybe_update - dest: #{dest}")
     now = DateTime.utc_now |> DateTime.to_unix(:millisecond)
     duration = now - state.last_ms
-    Logger.debug("Duration: #{duration} ms")
+    Logger.debug("#{object} - Duration: #{duration} ms")
 
     if duration > state.stats_interval_ms do
       state =
         if Map.has_key?(state, :history) do
-          Logger.debug("Update history entry")
+          Logger.debug("#{object} - Update history entry")
        
           max = get_max_latency(state)
           min = get_min_latency(state)
@@ -73,6 +84,8 @@ defmodule Stats do
           latest_requests = Enum.count(state.latencies)
           duration_second = duration / 1000
           duration_since_start_second = DateTime.diff(DateTime.utc_now, state.start_date_time)
+
+          Logger.debug("#{object} - Latest_requests: #{inspect(state.latencies)}")
 
           %{state | history: %{
             last_requests_rate: safe_div(latest_requests, duration_second),
@@ -95,7 +108,7 @@ defmodule Stats do
         %{state | latencies: [], last_ms: now}
       end
     else
-      Logger.warn("State wasn't updated")
+      Logger.info("#{object} - State wasn't updated")
       state
     end
   end
@@ -153,7 +166,7 @@ defmodule Stats do
   defp get_avg_latency(%{latencies: latencies, requests: total_requests, history: %{latency: %{avg: history_avg}}}) do 
     previous_requests = total_requests - Enum.count(latencies)
     
-    history_avg * (previous_requests / total_requests) + Enum.sum(latencies) * (Enum.count(latencies) / total_requests)
+    (history_avg * (previous_requests / total_requests) + Enum.sum(latencies) / total_requests)
     |> trunc()
   end
 end

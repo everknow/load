@@ -46,6 +46,7 @@ defmodule Load.Worker do
   def handle_info(:run, %{sim: sim, interval_ms: interval_ms, latencies: latencies} = state) do
     start_time = System.monotonic_time
 
+    # TODO: Make this fire and forget to not be affected by the response time.
     state = sim.run(state)
 
     latency_ms = (System.monotonic_time - start_time) / 1000000 |> trunc()
