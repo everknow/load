@@ -6,7 +6,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def init(req, _state) do
-    state = %{caller: req.pid, transport: :http, protocols: [:ilp_packet]}
+    state = %{caller: req.pid, protocols: [:http], transport: :tcp}
     :pg.join(WS, self())
     Process.send_after(state.caller, :ping, 5000)
     {:cowboy_websocket, req, state}
