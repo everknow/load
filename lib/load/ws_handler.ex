@@ -13,7 +13,7 @@ defmodule Load.WSHandler do
   end
 
   @impl true
-  def websocket_handle(:ping, state) do
+  def websocket_handle(:pong, state) do
     Process.send_after(state.caller, :ping, 5000)
     Logger.debug("pong")
     {:ok, state}
@@ -53,6 +53,12 @@ defmodule Load.WSHandler do
   def websocket_info({:update, stats}, state) do
     Logger.info("forwarding stats")
     {:reply, {:text, Jason.encode!(%{stats: stats})}, state}
+  end
+
+  @impl true
+  def websocket_info(:ping, state) do
+    Logger.debug("ping")
+    {:reply, :ping, state}
   end
 
   @impl true

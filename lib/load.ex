@@ -33,7 +33,7 @@ defmodule Load do
     <>"| Commands available:\n"
     <>"| Load.scale  (count, :all | address) - scale to count workers on selected nodes\n"
     <>"| Load.connect(addresses)             - connect to addresses\n"
-    <>"| Load:i() - print current stats\n"
+    <>"| Load:q() - print current stats\n"
     <>"+-----------------------------------------------"
     )
 
