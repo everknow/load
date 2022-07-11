@@ -15,7 +15,6 @@ defmodule Load.Worker do
 
     state = args
     |> Map.merge(args.sim.init())
-    |> Map.put(:stats_entries, 0)
     |> Map.put(:interval_ms, apply(:timer,
       Application.get_env(:load, :worker_timeunit, :seconds), [
       Application.get_env(:load, :worker_interval, 5)
@@ -53,7 +52,7 @@ defmodule Load.Worker do
 
   def hit(target, headers, payload, state) do
 
-    %{host: host, port: port, conn: conn, stats_entries: stats_entries, opts: opts} = state
+    %{host: host, port: port, conn: conn, opts: opts} = state
 
     case opts do
       %{protocols: [:http], transport: :tcp} ->
@@ -62,48 +61,48 @@ defmodule Load.Worker do
           "POST" ->
             Logger.debug("hitting http://#{host}:#{port}#{path}")
             post_ref = :gun.post(conn, "http://#{host}:#{port}#{path}", headers, payload)
-            g = :gun.await(conn, post_ref, @req_timeout)
-            {:ok, resp_payload} = handle_http_result(g, post_ref, state)
-            state = Map.put(state, :stats_entries, stats_entries + 1)
-            {:ok, resp_payload, state}
+            state = Map.update!(state, :requests, &(&1+1))
+            handle_http_result(post_ref, state)
           _ ->
-            {:error , "http tcp #{verb} not_implemented"}
+            state = Map.update!(state, :failed, &(&1+1))
+            {:error , "http tcp #{verb} not_implemented", state}
         end
 
-        %{protocols: [:ilp_packet], transport: :tcp} ->
+      %{protocols: [:ilp_packet], transport: :tcp} ->
         {:ok,conn} = :gen_tcp.connect(host, port, [:binary])
         :gen_tcp.send(conn, payload)
+        state = Map.update!(state, :requests, &(&1+1))
         {:ok, "no response", state}
 
-      _ ->
-        {:error , "not_implemented"}
+      err ->
+        state = Map.update!(state, :failed, &(&1+1))
+        {:error , "not_implemented #{err}", state}
 
     end
   end
 
-  defp handle_http_result({:response, _, code, _resp_headers}, post_ref, %{conn: conn}) do
-    cond do
-      div(code, 100) == 2 ->
-        :gun.await_body(conn, post_ref, @req_timeout)
+  defp handle_http_result(post_ref, state = %{conn: conn}) do
+    case :gun.await(conn, post_ref, @req_timeout) do
+      {:response, _, code, _resp_headers} ->
+        cond do
+          div(code, 100) == 2 ->
+            case :gun.await_body(conn, post_ref, @req_timeout) do
+              {:ok, resp_payload} ->
+                state = Map.update!(state, :succeeded, &(&1+1))
+                {:ok, resp_payload, state}
+              err ->
+                state = Map.update!(state, :failed, &(&1+1))
+                {:error, err, state}
+            end
 
-      # this is returned when incorrect packet is sent
-      # we will allow this for now as we want to continue
-      # load testing even when receiving a Reject
-      :demo ->
-        :gun.await_body(conn, post_ref, @req_timeout)
-
-      # :else ->
-      #   {:error, "response code #{code}"}
+          :else ->
+            state = Map.update!(state, :failed, &(&1+1))
+            {:error, "response code #{code}", state}
+        end
+      err->
+        state = Map.update!(state, :failed, &(&1+1))
+        {:error, err, state}
     end
-  end
-
-  defp handle_http_result(reason,_, %{sleep_time: sleep_time, stats_errors: stats_errors} = state) do
-    Logger.error("Error (#{inspect(self())}) #{inspect(reason)}")
-
-    Process.send_after(self(), :loop, sleep_time)
-
-    state = Map.put(state, :stats_errors, stats_errors + 1)
-    {:noreply, state}
 
   end
 
