@@ -32,7 +32,7 @@ defmodule Load.Worker do
 
   def handle_info(:connect, %{host: host, port: port, opts: _opts} = state) do
 
-    Log.debug("connect state: #{inspect(state)}")
+    Logger.debug("connect state: #{inspect(state)}")
     # TODO handle as case
     {:ok, conn} = :gun.open(host, port)
     {:ok, _transport} = :gun.await_up(conn)
