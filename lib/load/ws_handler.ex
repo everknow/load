@@ -20,6 +20,12 @@ defmodule Load.WSHandler do
   end
 
   @impl true
+  def websocket_handle(:ping, state) do
+    Logger.debug("received ping from gun")
+    {:ok, state}
+  end
+
+  @impl true
   def websocket_handle({:text, message}, state) do
     case Jason.decode!(message) do
       %{"command" => "terminate"} ->
