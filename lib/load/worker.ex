@@ -34,12 +34,18 @@ defmodule Load.Worker do
 
     Logger.debug("connect state: #{inspect(state)}")
     # TODO handle as case
-    {:ok, conn} = :gun.open(host, port)
-    {:ok, _transport} = :gun.await_up(conn)
+    case :gun.open(host, port) do
+      {:ok, conn} ->
+        resp = gun.await_up(conn)
+        Logger.debug("await response: #{inspect(resp)}")
+#        {:ok, _transport} = :gun.await_up(conn)
+        Process.send_after(self(), :run, 0)
+        {:noreply, Map.put(state, :conn, conn)}
+      err ->
+        Logger.debug("error: #{inspect(err)}")
+        {:stop, :normal}
+    end
 
-    Process.send_after(self(), :run, 0)
-
-    {:noreply, Map.put(state, :conn, conn)}
   end
 
 
