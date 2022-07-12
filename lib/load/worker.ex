@@ -42,11 +42,11 @@ defmodule Load.Worker do
             {:noreply, Map.put(state, :conn, conn)}
           err ->
             Logger.warn("gun.await_up: #{inspect(err)}")
-            {:stop, :normal}
+            {:stop, :normal, state}
         end
       err ->
         Logger.warn("gun.open: #{inspect(err)}")
-        {:stop, :normal}
+        {:stop, :normal, state}
     end
 
   end
