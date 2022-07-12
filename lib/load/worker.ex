@@ -36,7 +36,7 @@ defmodule Load.Worker do
 
     case :gun.open(host, port) do
       {:ok, conn} ->
-        resp = gun.await_up(conn)
+        resp = :gun.await_up(conn)
         Logger.debug("await response: #{inspect(resp)}")
 #        {:ok, _transport} = :gun.await_up(conn)
         Process.send_after(self(), :run, 0)
