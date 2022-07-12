@@ -36,13 +36,16 @@ defmodule Load.Worker do
 
     case :gun.open(host, port) do
       {:ok, conn} ->
-        resp = :gun.await_up(conn)
-        Logger.debug("await response: #{inspect(resp)}")
-#        {:ok, _transport} = :gun.await_up(conn)
-        Process.send_after(self(), :run, 0)
-        {:noreply, Map.put(state, :conn, conn)}
+        case :gun.await_up(conn) do
+          {:ok, _transport} ->
+            Process.send_after(self(), :run, 0)
+            {:noreply, Map.put(state, :conn, conn)}
+          err ->
+            Logger.warn("gun.await_up: #{inspect(err)}")
+            {:stop, :normal}
+        end
       err ->
-        Logger.debug("error: #{inspect(err)}")
+        Logger.warn("gun.open: #{inspect(err)}")
         {:stop, :normal}
     end
 
@@ -83,7 +86,7 @@ defmodule Load.Worker do
 
       err ->
         state = Map.update!(state, :failed, &(&1+1))
-        {:error , "not_implemented #{err}", state}
+        {:error , "not_implemented #{inspect(err)}", state}
 
     end
   end
