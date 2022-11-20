@@ -41,7 +41,7 @@ defmodule Load.MixProject do
     [
       files: ~w(lib .formatter.exs mix.exs config test .gitignore README.md LICENSE),
       licenses: ["GNU General Public License v3.0"],
-      links: []
+      links: ["https://github.com/everknow/load"]
     ]
   end
 end
