@@ -2,17 +2,17 @@ defmodule Load.MixProject do
   use Mix.Project
 
   def project do
-    vsn =
-      case File.read("vsn.txt") do
-        {:ok, v} -> String.trim(v)
-        _ -> "0.0.0"
-      end
     [
       app: :load,
-      version: vsn,
+      version: "0.1.0",
       elixir: "~> 1.10",
+      # build_embedded: Mix.env == :prod,
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      description: description(),
+      package: package(),
+      deps: deps(),
+      name: "load",
+      source_url: "https://github.com/everknow/load"
     ]
   end
 
@@ -29,6 +29,17 @@ defmodule Load.MixProject do
       {:jason, "~> 1.3"},
       {:plug_cowboy, "~> 2.5"},
       {:corsica, "~> 1.1"}
+    ]
+  end
+
+  defp description() do
+    "A simple library for load testing"
+  end
+
+  defp package() do
+    [
+      files: ~w(lib .formatter.exs mix.exs config test .gitignore README.md LICENSE),
+      licenses: ["GNU General Public License v3.0"]
     ]
   end
 end
