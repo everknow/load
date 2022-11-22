@@ -40,7 +40,7 @@ defmodule Load.MixProject do
   defp package() do
     [
       files: ~w(lib .formatter.exs mix.exs config test .gitignore README.md LICENSE),
-      licenses: ["GNU General Public License v3.0"],
+      licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/everknow/load"}
     ]
   end
