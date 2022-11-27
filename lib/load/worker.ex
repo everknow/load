@@ -100,7 +100,7 @@ defmodule Load.Worker do
               {:ok, payload} ->
                 Map.get(state, :payload_process_fun, fn {payload, _code, state} ->
                   {:ok, payload, Map.update!(state, :succeeded, &(&1+1))}
-                end).(payload, state)
+                end).(payload, code, state)
               err ->
                 state = Map.update!(state, :failed, &(&1+1))
                 {:error, err, state}
