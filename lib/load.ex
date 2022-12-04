@@ -25,6 +25,24 @@ defmodule Load do
     end)
   end
 
+  # configure(%{
+  #  sim: ChainLoad.ERC20.Sim,
+  #  config_mod: ChainLoad.WorkerNodeConfigurator
+  #})
+  def configure(config, address \\ :all) do
+    children = DynamicSupervisor.which_children(Load.Connection.Supervisor)
+    count = length(children)
+    children = children |> Enum.zip(1..count)
+    children |> Enum.each(fn {{:undefined, pid, :worker, [Load.WSClient]}, n} ->
+      GenServer.cast(pid, {:ws_send, address, %{command: "configure",
+      config: if config.config_mod do
+        config.config_mod.select(config, n, count)
+      else
+        config
+      end}})
+      end)
+  end
+
   def q, do: Stats.get()
 
   def h, do:

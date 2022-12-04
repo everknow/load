@@ -48,11 +48,23 @@ defmodule Load.WSHandler do
           DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
         end)
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+      %{"command" => "configure", "config" => config} ->
+        config = Jason.decode!(config)
+        # mandatory to have a sim
+        Application.put_env(:load, :sim, config["sim"])
+        if config_mod = config["config_mod"], do: config_mod.configure(config)
+        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       _ ->
         {:reply, {:text, "invalid"}, state}
         # IO.puts("received #{message}")
     end
 
+  end
+
+  @impl true
+  def websocket_info({:notify, message}, state) do
+    Logger.info("forwarding message")
+    {:reply, {:text, message, state}}
   end
 
   @impl true
