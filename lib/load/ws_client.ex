@@ -26,9 +26,13 @@ defmodule Load.WSClient do
     case Jason.decode!(message) do
       %{"ok" => "ok"} ->
         Logger.info("cool good response")
-      %{"stats" => stats} ->
+      %{"update" => stats} ->
         :pg.get_local_members(Global)
         |> Enum.each(&send(&1, {:update, stats |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)}))
+      # TODO: handle in bulk?
+      %{"notify" => tx_hash} ->
+        :pg.get_local_members(Subscriber)
+        |> Enum.each(&send(&1, {:notify, tx_hash}))
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end

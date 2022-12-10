@@ -7,7 +7,7 @@ defmodule Load.WSHandler do
   @impl true
   def init(req, _state) do
     state = %{caller: req.pid, protocols: [:http], transport: :tcp}
-    :pg.join(WS, self())
+    :pg.join(WS, state.caller)
     Process.send_after(state.caller, :ping, 5000)
     {:cowboy_websocket, req, state}
   end
@@ -49,14 +49,14 @@ defmodule Load.WSHandler do
         end)
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"command" => "configure", "config" => config} ->
-        config = Jason.decode!(config)
         # mandatory to have a sim
-        Application.put_env(:load, :sim, config["sim"])
-        if config_mod = config["config_mod"], do: config_mod.configure(config)
+        Application.put_env(:load, :sim, config["sim"] |> String.to_existing_atom())
+        if config_mod = config["config_mod"] |> String.to_existing_atom(), do: config_mod.configure(config)
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       _ ->
-        {:reply, {:text, "invalid"}, state}
         # IO.puts("received #{message}")
+        {:reply, {:text, "invalid"}, state}
+
     end
 
   end
@@ -64,13 +64,13 @@ defmodule Load.WSHandler do
   @impl true
   def websocket_info({:notify, message}, state) do
     Logger.info("forwarding message")
-    {:reply, {:text, message, state}}
+    {:reply, {:text, Jason.encode!(%{notify: message})}, state}
   end
 
   @impl true
   def websocket_info({:update, stats}, state) do
-    Logger.info("forwarding stats")
-    {:reply, {:text, Jason.encode!(%{stats: stats})}, state}
+    Logger.debug("forwarding stats")
+    {:reply, {:text, Jason.encode!(%{update: stats})}, state}
   end
 
   @impl true

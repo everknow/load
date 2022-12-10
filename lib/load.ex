@@ -45,6 +45,8 @@ defmodule Load do
 
   def q, do: Stats.get()
 
+  def subscribe(pid), do: :pg.join(Subscriber, pid)
+
   def h, do:
     IO.puts(
       "+-----------------------------------------------\n"
