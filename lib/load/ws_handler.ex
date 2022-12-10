@@ -63,7 +63,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def websocket_info({:notify, message}, state) do
-    Logger.info("forwarding message")
+    Logger.debug("forwarding message")
     {:reply, {:text, Jason.encode!(%{notify: message})}, state}
   end
 
