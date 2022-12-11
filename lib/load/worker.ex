@@ -98,7 +98,7 @@ defmodule Load.Worker do
           div(code, 100) == 2 ->
             case :gun.await_body(conn, post_ref, @req_timeout) do
               {:ok, payload} ->
-                Map.get(state, :payload_process_fun, fn {payload, _code, state} ->
+                Map.get(state, :payload_process_fun, fn payload, _code, state ->
                   {:ok, payload, Map.update!(state, :succeeded, &(&1+1))}
                 end).(payload, code, state)
               err ->

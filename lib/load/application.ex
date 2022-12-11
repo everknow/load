@@ -21,6 +21,8 @@ defmodule Load.Application do
       %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, []]}}
 
     ]
+    ++ Application.get_env(:load, :injected_children, [])
+
     opts = [strategy: :one_for_one, name: Load.Supervisor]
     Supervisor.start_link(children, opts)
   end

@@ -2,7 +2,7 @@ defmodule Load do
 
   require Logger
 
-  def scale(count, address \\ :all) when is_integer(count) and count > 0 and (address == :all or is_binary(address)) do
+  def scale(count, address \\ :all) when is_integer(count) and count >= 0 and (address == :all or is_binary(address)) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
       GenServer.cast(pid, {:ws_send, address, %{command: "scale", count: count}})

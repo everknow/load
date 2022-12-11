@@ -43,10 +43,12 @@ defmodule Load.WSHandler do
           end
           acc
         end)
-        1..count
-        |> Enum.each(fn _ ->
-          DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
-        end)
+        if count > 0 do
+          1..count
+          |> Enum.each(fn _ ->
+            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
+          end)
+        end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"command" => "configure", "config" => config} ->
         # mandatory to have a sim
