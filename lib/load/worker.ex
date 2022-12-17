@@ -14,15 +14,15 @@ defmodule Load.Worker do
     Logger.debug("init called with args: #{inspect(args)}")
 
     state = args
+    |> Map.put(:interval_ms, apply(:timer,
+      Application.get_env(:load, :worker_timeunit, :seconds), [
+      Application.get_env(:load, :worker_interval, 5)
+    ]))
+    |> Map.put(:stats_interval_ms, apply(:timer,
+      Application.get_env(:load, :worker_stats_timeunit, :seconds), [
+      Application.get_env(:load, :worker_stats_interval, 1)
+    ]))
     |> Map.merge(args.sim.init())
-    # |> Map.put(:interval_ms, apply(:timer,
-    #   Application.get_env(:load, :worker_timeunit, :seconds), [
-    #   Application.get_env(:load, :worker_interval, 5)
-    # ]))
-    # |> Map.put(:stats_interval_ms, apply(:timer,
-    #   Application.get_env(:load, :worker_stats_timeunit, :seconds), [
-    #   Application.get_env(:load, :worker_stats_interval, 1)
-    # ]))
     |> Map.merge(Stats.empty())
 
     Process.send_after(self(), :connect, @connect_delay)
