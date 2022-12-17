@@ -78,7 +78,7 @@ defmodule Load.Worker do
         case verb do
           "POST" ->
             Logger.debug("hitting http://#{host}:#{port}#{path}")
-            post_ref = :gun.post(conn, "http://#{host}:#{port}#{path}", headers, payload)
+            post_ref = :gun.post(conn, "#{path}", headers, payload)
             state = Map.update!(state, :requests, &(&1+1))
             handle_http_result(post_ref, state)
           _ ->
