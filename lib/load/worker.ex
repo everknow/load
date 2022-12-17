@@ -15,14 +15,14 @@ defmodule Load.Worker do
 
     state = args
     |> Map.merge(args.sim.init())
-    |> Map.put(:interval_ms, apply(:timer,
-      Application.get_env(:load, :worker_timeunit, :seconds), [
-      Application.get_env(:load, :worker_interval, 5)
-    ]))
-    |> Map.put(:stats_interval_ms, apply(:timer,
-      Application.get_env(:load, :worker_stats_timeunit, :seconds), [
-      Application.get_env(:load, :worker_stats_interval, 1)
-    ]))
+    # |> Map.put(:interval_ms, apply(:timer,
+    #   Application.get_env(:load, :worker_timeunit, :seconds), [
+    #   Application.get_env(:load, :worker_interval, 5)
+    # ]))
+    # |> Map.put(:stats_interval_ms, apply(:timer,
+    #   Application.get_env(:load, :worker_stats_timeunit, :seconds), [
+    #   Application.get_env(:load, :worker_stats_interval, 1)
+    # ]))
     |> Map.merge(Stats.empty())
 
     Process.send_after(self(), :connect, @connect_delay)
@@ -58,6 +58,14 @@ defmodule Load.Worker do
     |> Stats.maybe_update()
     Process.send_after(self(), :run, interval_ms)
     {:noreply, state}
+  end
+
+  def handle_info(message, %{sim: sim} = state) do
+    if Keyword.has_key?(sim.__info__(:functions), :handle_info) do
+      {:noreply, sim.handle_message(message, state)}
+    else
+      {:noreply, state}
+    end
   end
 
   def hit(target, headers, payload, state) do

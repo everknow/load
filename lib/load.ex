@@ -25,10 +25,6 @@ defmodule Load do
     end)
   end
 
-  # configure(%{
-  #  sim: ChainLoad.ERC20.Sim,
-  #  config_mod: ChainLoad.WorkerNodeConfigurator
-  #})
   def configure(config, address \\ :all) do
     children = DynamicSupervisor.which_children(Load.Connection.Supervisor)
     count = length(children)
@@ -43,18 +39,15 @@ defmodule Load do
       end)
   end
 
-  def q, do: Stats.get()
-
   def subscribe(pid), do: :pg.join(Subscriber, pid)
 
   def h, do:
-    IO.puts(
-      "+-----------------------------------------------\n"
-    <>"| Commands available:\n"
-    <>"| Load.scale  (count, :all | address) - scale to count workers on selected nodes\n"
-    <>"| Load.connect(addresses)             - connect to addresses\n"
-    <>"| Load:q() - print current stats\n"
-    <>"+-----------------------------------------------"
-    )
+    IO.puts("""
+    Commands available:\n
+    Load.scale  (count, :all | address) - scale to count workers on selected nodes\n
+    Load.connect(addresses)             - connect to addresses\n
+    Load.configure                      - TODO
+    Load.subscribe                      - TODO
+    """)
 
 end
