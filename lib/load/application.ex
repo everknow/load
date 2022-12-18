@@ -32,8 +32,9 @@ defmodule Load.Application do
       {:_,
        [
          {"/ws", Load.WSHandler, []},
-         {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}}
-        #  {:_, Plug.Cowboy.Handler, {Example.EchoRouter, []}}
+         {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}},
+         {"/example/async", Plug.Cowboy.Handler, {Example.AsyncRouter, []}},
+         {"/example/ws_async", Plug.Cowboy.Handler, {Example.AsyncWSHandler, []}}
        ]}
     ]
   end

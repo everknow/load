@@ -28,8 +28,7 @@ defmodule Load.MixProject do
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:gun, "~> 2.0.0-rc.2"},
       {:jason, "~> 1.3"},
-      {:plug_cowboy, "~> 2.5"},
-      {:corsica, "~> 1.1"}
+      {:plug_cowboy, "~> 2.5"}
     ]
   end
 

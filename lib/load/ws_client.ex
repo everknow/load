@@ -25,7 +25,7 @@ defmodule Load.WSClient do
   def handle_info({:gun_ws, _conn, _, {:text, message}}, state) do
     case Jason.decode!(message) do
       %{"ok" => "ok"} ->
-        Logger.info("ok")
+        Logger.debug(inspect({state.address, "ok"}))
       %{"count" => count} ->
         IO.inspect({state.address, count})
       %{"update" => stats} ->

@@ -9,32 +9,39 @@ defmodule Load.Worker do
 
   def start_link(glob, args \\ []), do: GenServer.start_link(__MODULE__, glob ++ args |> Enum.into(%{}) )
 
+  @impl true
   def init(args) do
 
     Logger.debug("init called with args: #{inspect(args)}")
 
     state = args
-    |> Map.put(:interval_ms, apply(:timer,
-      Application.get_env(:load, :worker_timeunit, :seconds), [
-      Application.get_env(:load, :worker_interval, 5)
-    ]))
-    |> Map.put(:stats_interval_ms, apply(:timer,
-      Application.get_env(:load, :worker_stats_timeunit, :seconds), [
-      Application.get_env(:load, :worker_stats_interval, 1)
-    ]))
+    |> Map.merge(%{
+      interval_ms: 5000,
+      stats_interval_ms: 1000,
+      host: "localhost",
+      port: 8888,
+      opts: %{protocols: [:http], transport: :tcp}
+    })
     |> Map.merge(args.sim.init())
+    |> Map.drop([args.sim])
+    |> Load.Sim.config_time(args.sim)
     |> Map.merge(Stats.empty())
+
+    if state[:group] do
+      :pg.join(state.group, self())
+    end
 
     Process.send_after(self(), :connect, @connect_delay)
 
     {:ok, state}
   end
 
+  @impl true
   def handle_info(:connect, %{host: host, port: port, opts: _opts} = state) do
 
     Logger.debug("connect state: #{inspect(state)}")
 
-    case :gun.open(host, port) do
+    case :gun.open(host |> String.to_charlist(), port) do
       {:ok, conn} ->
         case :gun.await_up(conn) do
           {:ok, _transport} ->
@@ -50,7 +57,6 @@ defmodule Load.Worker do
     end
 
   end
-
 
   def handle_info(:run, %{sim: sim, interval_ms: interval_ms} = state) do
     state = state
@@ -123,6 +129,13 @@ defmodule Load.Worker do
         {:error, err, state}
     end
 
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    if state[:group] do
+      :pg.leave(state.group, self())
+    end
   end
 
 end
