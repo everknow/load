@@ -34,14 +34,18 @@ defmodule Load.WSHandler do
           DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
         end)
         {:stop, state}
-      %{"command" => "scale", "count" => count} ->
+      %{"command" => "scale", "sim" => sim, "count" => count} ->
         count = Supervisor.which_children(Load.Worker.Supervisor)
         |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
-          acc = acc - 1
-          if acc < 0 do
-            DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+          case pid |> :sys.get_state() do
+            %{sim: "Elixir."<>^sim} ->
+              acc = acc - 1
+              if acc < 0 do
+                DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+              end
+            _ ->
+              acc
           end
-          acc
         end)
         if count > 0 do
           1..count
@@ -50,6 +54,17 @@ defmodule Load.WSHandler do
           end)
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+      %{"command" => "count", "sim" => sim} ->
+        count = Supervisor.which_children(Load.Worker.Supervisor)
+        |> Enum.reduce(0, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
+          case pid |> :sys.get_state() do
+            %{sim: "Elixir."<>^sim} ->
+              acc + 1
+            _ ->
+              acc
+          end
+        end)
+        {:reply, {:text, Jason.encode!(%{count: count})}, state}
       %{"command" => "configure", "config" => config} ->
         # mandatory to have a sim
         Application.put_env(:load, :sim, config["sim"] |> String.to_existing_atom())
@@ -58,9 +73,7 @@ defmodule Load.WSHandler do
       _ ->
         # IO.puts("received #{message}")
         {:reply, {:text, "invalid"}, state}
-
     end
-
   end
 
   @impl true

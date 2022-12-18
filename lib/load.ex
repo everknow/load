@@ -2,12 +2,19 @@ defmodule Load do
 
   require Logger
 
-  def scale(count, address \\ :all) when is_integer(count) and count >= 0 and (address == :all or is_binary(address)) do
+  def scale(count, sim, address \\ :all) when is_integer(count) and count >= 0 and (address == :all or is_binary(address)) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, address, %{command: "scale", count: count}})
+      GenServer.cast(pid, {:ws_send, address, %{command: "scale", sim: sim, count: count}})
       end)
   end
+
+  def count(sim) do
+    DynamicSupervisor.which_children(Load.Connection.Supervisor)
+    |> Enum.map(fn {:undefined, pid, :worker, [Load.WSClient]} ->
+      GenServer.cast(pid, {:ws_send, :all, %{command: "count", sim: sim}})
+      end)
+    end
 
   def connect(addresses \\ ["localhost"]) when is_list(addresses) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
@@ -44,8 +51,9 @@ defmodule Load do
   def h, do:
     IO.puts("""
     Commands available:\n
-    Load.scale  (count, :all | address) - scale to count workers on selected nodes\n
-    Load.connect(addresses)             - connect to addresses\n
+    Load.scale(count, sim, :all | address) - scale to count workers for sim on selected nodes\n
+    Load.count(sim) - lists number of active workers for sim by node\n
+    Load.connect(addresses) - connect master to slave addresses\n
     Load.configure                      - TODO
     Load.subscribe                      - TODO
     """)

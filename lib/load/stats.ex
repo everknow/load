@@ -73,7 +73,7 @@ defmodule Stats do
           else
             stats
           end
-          {sim, Map.merge(stats, Stats.empty())}
+          {sim, Map.merge(stats, Stats.empty() |> Map.drop([:avg_latency]))}
         end)
         |> Enum.into(%{})
       }
