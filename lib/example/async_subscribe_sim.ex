@@ -8,24 +8,36 @@ defmodule Example.AsyncSubscribeSim do
   def init do
     :pg.join(RefSubscribers, self())
     Application.get_env(:load, __MODULE__, %{})
-    |> Map.put(:pending, :gb_trees.empty())
+    |> Map.put(:pending, %{})
   end
 
   @impl true
-  def run(state) do #TODO run must behave as websocket this time
-    payload = "example content"
-    {:ok, res_payload, state} = Load.Worker.hit("POST /example/echo", [], payload, state)
-    Logger.debug("sim received back #{res_payload}")
-    state
+  def run(%{pending: pending} = state) do
+    now = now()
+    count = Enum.count(pending)
+    pending = pending |> Map.reject(fn {_k, v} -> now > v + 60000 end)
+    %{state | pending: pending, failures: state.failures + (count - Enum.count(pending))}
   end
 
   @impl true
-  def handle_message(message, %{pending: pending} = state) do
-    case message do
-      {:register_ref, ref} ->
-        %{state | pending: :gb_trees.insert(ref, now(), pending)}
-      _ ->
+  def handle_message({:register, ref}, state) do
+    %{state | pending: state.pending |> Map.put(ref, now())}
+  end
+
+  @impl true
+  def handle_message({:gun_ws, _conn, _, {:text, message}}, %{avg_latency: avg_latency} = state) do
+    %{"completed" => ref} = Jason.decode!(message)
+    case state.pending[ref] do
+      nil ->
         state
+      init_time ->
+        latency = now()-init_time
+        avg_latency = if avg_latency  do
+          (avg_latency + latency)/2
+        else
+          latency
+        end
+        %{state | avg_latency: avg_latency}
     end
   end
 

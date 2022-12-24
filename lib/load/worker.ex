@@ -20,7 +20,11 @@ defmodule Load.Worker do
       stats_interval_ms: 1000,
       host: "localhost",
       port: 8888,
-      opts: %{protocols: [:http], transport: :tcp}
+      protocol: :http,
+      ws: nil,
+      conn: nil,
+      stream_ref: nil,
+      opts: %{retry: 0, ws_opts: %{keepalive: :timer.seconds(20), silence_pings: true}}
     })
     |> Map.merge(args.sim.init())
     |> Map.drop([args.sim])
@@ -37,25 +41,39 @@ defmodule Load.Worker do
   end
 
   @impl true
-  def handle_info(:connect, %{host: host, port: port, opts: _opts} = state) do
-
+  def handle_info(:connect, %{host: host, port: port, protocol: protocol} = state) do
     Logger.debug("connect state: #{inspect(state)}")
-
-    case :gun.open(host |> String.to_charlist(), port) do
-      {:ok, conn} ->
-        case :gun.await_up(conn) do
-          {:ok, _transport} ->
-            Process.send_after(self(), :run, 0)
-            {:noreply, Map.put(state, :conn, conn)}
+    case protocol do
+      :http ->
+        case :gun.open(host |> String.to_charlist(), port, state.opts) do
+          {:ok, conn} ->
+            case :gun.await_up(conn) do
+              {:ok, :http} ->
+                Process.send_after(self(), :run, 0)
+                if state[:ws] do
+                  stream_ref = :gun.ws_upgrade(conn, state.ws |> to_charlist())
+                  {:noreply, %{state | conn: conn, stream_ref: stream_ref}}
+                else
+                  {:noreply, %{state | conn: conn}}
+                end
+              err ->
+                Logger.warn("gun.await_up: #{inspect(err)}")
+                {:stop, :normal, state}
+            end
           err ->
-            Logger.warn("gun.await_up: #{inspect(err)}")
+            Logger.warn("gun.open http: #{inspect(err)}")
             {:stop, :normal, state}
         end
-      err ->
-        Logger.warn("gun.open: #{inspect(err)}")
-        {:stop, :normal, state}
+      :raw ->
+        case :gun.open(host |> String.to_charlist(), port) do
+          {:ok, conn} ->
+            Process.send_after(self(), :run, 0)
+            {:noreply, %{state | conn: conn}}
+          err ->
+            Logger.warn("gun.open raw: #{inspect(err)}")
+            {:stop, :normal, state}
+        end
     end
-
   end
 
   def handle_info(:run, %{sim: sim, interval_ms: interval_ms} = state) do
@@ -74,16 +92,13 @@ defmodule Load.Worker do
     end
   end
 
-  def hit(target, headers, payload, state) do
-
-    %{host: host, port: port, conn: conn, opts: opts} = state
-
-    case opts do
-      %{protocols: [:http], transport: :tcp} ->
+  def hit(target, headers, payload, %{conn: conn} = state) do
+    case state do
+      %{protocol: :http, ws: nil} ->
         [verb, path] = String.split(target, " ")
         case verb do
           "POST" ->
-            Logger.debug("hitting http://#{host}:#{port}#{path}")
+            Logger.debug("hitting http://#{state.host}:#{state.port}#{path}")
             post_ref = :gun.post(conn, "#{path}", headers, payload)
             state = Map.update!(state, :requests, &(&1+1))
             handle_http_result(post_ref, state)
@@ -91,17 +106,16 @@ defmodule Load.Worker do
             state = Map.update!(state, :failed, &(&1+1))
             {:error , "http tcp #{verb} not_implemented", state}
         end
-
-      %{protocols: [:ilp_packet], transport: :tcp} ->
-        {:ok,conn} = :gen_tcp.connect(host, port, [:binary])
+      %{protocol: :http} ->
+        :ok = :gun.ws_send(conn, state.stream_ref, payload)
+        {:ok, nil, state}
+      %{protocol: :raw} ->
         :gen_tcp.send(conn, payload)
         state = Map.update!(state, :requests, &(&1+1))
-        {:ok, "no response", state}
-
-      err ->
+        {:ok, nil, state}
+      _ ->
         state = Map.update!(state, :failed, &(&1+1))
-        {:error , "not_implemented #{inspect(err)}", state}
-
+        {:error , "unknown protocol #{state[:protocol]}", state}
     end
   end
 
@@ -139,31 +153,3 @@ defmodule Load.Worker do
   end
 
 end
-
-    # this is for websocket?
-    # case :gun.await_up(conn, @gun_timeout) do
-    #     {:ok, _} ->
-    #         conn
-    #     {:error, :timeout} ->
-    #         :timer.sleep(:timer.seconds(2))
-    #         create_connection(host_ip, port, http_opts, max_retries - 1)
-    #     error ->
-    #       Logger.error("Could not connect to host:#{inspect(host_ip)} port:#{inspect(port)} due to:#{inspect(error)}")
-    #         error
-    # end
-
-
-  # def handle_info(:get_ip, %{host: host} = state) do
-
-  #   case :inet.getaddr(host, :inet) do
-
-  #     {:ok, ip} ->
-  #       Process.send_after(self(), :connect, 0)
-  #       {:noreply, Map.put(state, :ip, ip)}
-
-  #     {:error, reason} ->
-  #       Logger.error("[#{__MODULE__}] init failed for host:#{inspect(host)} due to:#{inspect(reason)}")
-  #       Process.send_after(self(), :get_ip, @connect_delay)
-  #   end
-
-  # end

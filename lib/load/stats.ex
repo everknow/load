@@ -8,7 +8,7 @@ defmodule Stats do
     requests: 0,
     succeeded: 0,
     failed: 0,
-    avg_latency: 0.0
+    avg_latency: nil
   }
 
   @impl true
@@ -41,7 +41,7 @@ defmodule Stats do
         Map.merge(state.stats[sim], stats, fn k, v1, v2 ->
           case k do
             :history -> v1
-            :avg_latency -> (v1 + v2) / 2
+            :avg_latency -> if v1, do: (v1 + v2) / 2, else: v2
             _ -> v1 + v2
           end
         end)

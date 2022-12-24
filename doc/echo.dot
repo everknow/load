@@ -1,0 +1,5 @@
+digraph {
+    echo_sim -> echo_endpoint [label = "1. measure latency"]
+    echo_sim -> local_stats [label = "2. stats"]
+    local_stats [label = "request\n succeeded\n failed\n avg_latency", align = left]
+}

@@ -15,7 +15,7 @@ defmodule Example.AsyncPostSim do
     {:ok, res_payload, state} = Load.Worker.hit("POST /example/async", [], payload, state)
     ref = res_payload
     :pg.get_local_members(RefSubscribers)
-    |> Enum.each(&send(&1, {:register_ref, ref}))
+    |> Enum.each(&send(&1, {:register, ref}))
     Logger.debug("sim received back #{res_payload}")
     state
   end

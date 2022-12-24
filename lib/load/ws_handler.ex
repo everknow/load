@@ -6,7 +6,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def init(req, _state) do
-    state = %{caller: req.pid, protocols: [:http], transport: :tcp}
+    state = %{caller: req.pid}
     :pg.join(WS, state.caller)
     Process.send_after(state.caller, :ping, 5000)
     {:cowboy_websocket, req, state}
@@ -50,7 +50,7 @@ defmodule Load.WSHandler do
         if count > 0 do
           1..count
           |> Enum.each(fn _ ->
-            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: sim]})
+            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, sim: sim})
           end)
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}

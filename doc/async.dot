@@ -1,0 +1,9 @@
+digraph {
+    async_post_sim -> async_endpoint [label = "1. send message"]
+    async_endpoint -> async_handler [label = "server processing"]
+    async_handler -> async_subscribe_sim [label = "4. measure latency"]
+    async_post_sim -> async_subscribe_sim [label = "2. register"]
+    async_post_sim -> local_stats [label = "3. submitted stats"]
+    async_subscribe_sim -> local_stats [label = "5. submitted stats"]
+    local_stats [label = "request\n succeeded\n failed\n avg_latency", align = left]
+}

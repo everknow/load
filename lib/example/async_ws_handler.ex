@@ -6,7 +6,7 @@ defmodule Load.AsyncWSHandler do
 
   @impl true
   def init(req, _state) do
-    state = %{caller: req.pid, protocols: [:http], transport: :tcp}
+    state = %{caller: req.pid}
     :pg.join(AsyncWS, state.caller)
     Process.send_after(state.caller, :ping, 5000)
     {:cowboy_websocket, req, state}
