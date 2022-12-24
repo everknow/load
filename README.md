@@ -1,6 +1,7 @@
 # Load
 
-**TODO: Add description**
+Major change to 0.2.0-rc1:
+sim is not passed via config any longer -> it is now passed via scale and count
 
 ## Installation
 

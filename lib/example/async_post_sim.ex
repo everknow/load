@@ -1,4 +1,4 @@
-defmodule Example.EchoSim do
+defmodule Example.AsyncPostSim do
 
   @behaviour Load.Sim
 
@@ -12,8 +12,11 @@ defmodule Example.EchoSim do
   @impl true
   def run(state) do
     payload = "example content"
-    {:ok, res_payload, state} = Load.Worker.hit("POST /example/echo", [], payload, state)
+    {:ok, res_payload, state} = Load.Worker.hit("POST /example/async", [], payload, state)
     Logger.debug("sim received back #{res_payload}")
+    ref = res_payload
+    :pg.get_local_members(RefSubscribers)
+    |> Enum.each(&send(&1, {:register, ref}))
     state
   end
 

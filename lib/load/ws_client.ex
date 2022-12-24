@@ -25,7 +25,9 @@ defmodule Load.WSClient do
   def handle_info({:gun_ws, _conn, _, {:text, message}}, state) do
     case Jason.decode!(message) do
       %{"ok" => "ok"} ->
-        Logger.info("cool good response")
+        Logger.debug(inspect({state.address, "ok"}))
+      %{"count" => count} ->
+        IO.inspect({state.address, count})
       %{"update" => stats} ->
         :pg.get_local_members(Global)
         |> Enum.each(&send(&1, {:update, stats |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)}))

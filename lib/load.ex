@@ -2,12 +2,21 @@ defmodule Load do
 
   require Logger
 
-  def scale(count, address \\ :all) when is_integer(count) and count >= 0 and (address == :all or is_binary(address)) do
+  def scale(count, sim \\ nil) when is_integer(count) and count >= 0 do
+    sim = if sim, do: sim, else: Application.fetch_env!(:load, :sim)
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, address, %{command: "scale", count: count}})
+      GenServer.cast(pid, {:ws_send, _address = :all, %{command: "scale", sim: sim, count: count}})
       end)
   end
+
+  def count(sim \\ nil) do
+    sim = if sim, do: sim, else: Application.fetch_env!(:load, :sim)
+    DynamicSupervisor.which_children(Load.Connection.Supervisor)
+    |> Enum.map(fn {:undefined, pid, :worker, [Load.WSClient]} ->
+      GenServer.cast(pid, {:ws_send, _address = :all, %{command: "count", sim: sim}})
+      end)
+    end
 
   def connect(addresses \\ ["localhost"]) when is_list(addresses) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
@@ -25,10 +34,6 @@ defmodule Load do
     end)
   end
 
-  # configure(%{
-  #  sim: ChainLoad.ERC20.Sim,
-  #  config_mod: ChainLoad.WorkerNodeConfigurator
-  #})
   def configure(config, address \\ :all) do
     children = DynamicSupervisor.which_children(Load.Connection.Supervisor)
     count = length(children)
@@ -43,18 +48,16 @@ defmodule Load do
       end)
   end
 
-  def q, do: Stats.get()
-
   def subscribe(pid), do: :pg.join(Subscriber, pid)
 
   def h, do:
-    IO.puts(
-      "+-----------------------------------------------\n"
-    <>"| Commands available:\n"
-    <>"| Load.scale  (count, :all | address) - scale to count workers on selected nodes\n"
-    <>"| Load.connect(addresses)             - connect to addresses\n"
-    <>"| Load:q() - print current stats\n"
-    <>"+-----------------------------------------------"
-    )
+    IO.puts("""
+    Commands available: - parameters with ? suffix are optional\n
+    Load.scale(count, sim?) - scale to count workers for sim\n
+    Load.count(sim?) - lists number of active workers for sim by node\n
+    Load.connect(addresses?) - connect master to slave addresses\n
+    Load.configure                      - TODO\n
+    Load.subscribe                      - TODO
+    """)
 
 end

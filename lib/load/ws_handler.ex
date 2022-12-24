@@ -6,7 +6,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def init(req, _state) do
-    state = %{caller: req.pid, protocols: [:http], transport: :tcp}
+    state = %{caller: req.pid}
     :pg.join(WS, state.caller)
     Process.send_after(state.caller, :ping, 5000)
     {:cowboy_websocket, req, state}
@@ -34,33 +34,45 @@ defmodule Load.WSHandler do
           DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
         end)
         {:stop, state}
-      %{"command" => "scale", "count" => count} ->
+      %{"command" => "scale", "sim" => sim, "count" => count} ->
         count = Supervisor.which_children(Load.Worker.Supervisor)
         |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
-          acc = acc - 1
-          if acc < 0 do
-            DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+          case pid |> :sys.get_state() do
+            %{sim: "Elixir."<>^sim} ->
+              acc = acc - 1
+              if acc < 0 do
+                DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+              end
+            _ ->
+              acc
           end
-          acc
         end)
+        sim = "Elixir."<>sim |> String.to_existing_atom()
         if count > 0 do
           1..count
           |> Enum.each(fn _ ->
-            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, [sim: Application.get_env(:load, :sim, Example.EchoSim)]})
+            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, sim: sim})
           end)
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+      %{"command" => "count", "sim" => sim} ->
+        count = Supervisor.which_children(Load.Worker.Supervisor)
+        |> Enum.reduce(0, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
+          case pid |> :sys.get_state() do
+            %{sim: "Elixir."<>^sim} ->
+              acc + 1
+            _ ->
+              acc
+          end
+        end)
+        {:reply, {:text, Jason.encode!(%{count: count})}, state}
       %{"command" => "configure", "config" => config} ->
-        # mandatory to have a sim
-        Application.put_env(:load, :sim, config["sim"] |> String.to_existing_atom())
-        if config_mod = config["config_mod"] |> String.to_existing_atom(), do: config_mod.configure(config)
+        if config["config_mod"], do: String.to_existing_atom(config["config_mod"]).configure(config)
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       _ ->
         # IO.puts("received #{message}")
         {:reply, {:text, "invalid"}, state}
-
     end
-
   end
 
   @impl true
