@@ -35,10 +35,11 @@ defmodule Load.WSHandler do
         end)
         {:stop, state}
       %{"command" => "scale", "sim" => sim, "count" => count} ->
+        sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim
         count = Supervisor.which_children(Load.Worker.Supervisor)
         |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
           case pid |> :sys.get_state() do
-            %{sim: "Elixir."<>^sim} ->
+            %{sim: ^sim} ->
               acc = acc - 1
               if acc < 0 do
                 DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
@@ -47,7 +48,7 @@ defmodule Load.WSHandler do
               acc
           end
         end)
-        sim = "Elixir."<>sim |> String.to_existing_atom()
+        sim = sim |> String.to_existing_atom()
         if count > 0 do
           1..count
           |> Enum.each(fn _ ->
@@ -56,10 +57,11 @@ defmodule Load.WSHandler do
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"command" => "count", "sim" => sim} ->
+        sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim
         count = Supervisor.which_children(Load.Worker.Supervisor)
         |> Enum.reduce(0, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
           case pid |> :sys.get_state() do
-            %{sim: "Elixir."<>^sim} ->
+            %{sim: ^sim} ->
               acc + 1
             _ ->
               acc

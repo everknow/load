@@ -90,7 +90,7 @@ defmodule Load.Worker do
     duration = now - state.last_ms
     if duration > stats_interval_ms do
       :pg.get_local_members(dest)
-      |> Enum.each(&send(&1, {:update, __MODULE__, state |> Map.take(Map.keys(Stats.empty()))}))
+      |> Enum.each(&send(&1, {:update, state.sim, state |> Map.take(Map.keys(Stats.empty()))}))
       Map.merge(%{state | last_ms: now}, Stats.empty())
     else
       state
@@ -108,25 +108,28 @@ defmodule Load.Worker do
           case verb do
             "POST" ->
               Logger.debug("hitting http://#{state["host"]}:#{state["port"]}#{path}")
-              post_ref = :gun.post(conn, "#{path}", headers, payload)
-              state = Map.update!(state, :requests, &(&1+1))
-              handle_http_result(post_ref, state)
+              {latency, res} = :timer.tc(fn ->
+                post_ref = :gun.post(conn, "#{path}", headers, payload)
+                handle_http_result(post_ref, state |> inc(:requests))
+              end)
+              case res do
+                {:ok, p, s} when s.avg_latency -> {:ok, p, %{s | avg_latency: (s.avg_latency + latency/1000) / 2}}
+                {:ok, p, s} -> {:ok, p, %{s | avg_latency: latency/1000}}
+                pass -> pass
+              end
             _ ->
-              state = Map.update!(state, :failed, &(&1+1))
-              {:error , "http tcp #{verb} not_implemented", state}
+              {:error , "http tcp #{verb} not_implemented", state |> inc(:failed)}
           end
         end
       "raw" ->
         :gen_tcp.send(conn, payload)
-        state = Map.update!(state, :requests, &(&1+1))
-        {:ok, nil, state}
+        {:ok, nil, state |> inc(:requests)}
       _ ->
-        state = Map.update!(state, :failed, &(&1+1))
-        {:error , "unknown protocol #{state[:protocol]}", state}
+        {:error , "unknown protocol #{state[:protocol]}", state |> inc(:failed)}
     end
   end
 
-  defp handle_http_result(post_ref, state = %{conn: conn}) do
+  def handle_http_result(post_ref, state = %{conn: conn}) do
     case :gun.await(conn, post_ref, @req_timeout) do
       {:response, _, code, _resp_headers} ->
         cond do
@@ -134,20 +137,17 @@ defmodule Load.Worker do
             case :gun.await_body(conn, post_ref, @req_timeout) do
               {:ok, payload} ->
                 Map.get(state, :payload_process_fun, fn payload, _code, state ->
-                  {:ok, payload, Map.update!(state, :succeeded, &(&1+1))}
+                  {:ok, payload, state |> inc(:succeeded)}
                 end).(payload, code, state)
               err ->
-                state = Map.update!(state, :failed, &(&1+1))
-                {:error, err, state}
+                {:error, err, state |> inc(:failed) }
             end
 
           :else ->
-            state = Map.update!(state, :failed, &(&1+1))
-            {:error, "response code #{code}", state}
+            {:error, "response code #{code}", state |> inc(:failed)}
         end
       err->
-        state = Map.update!(state, :failed, &(&1+1))
-        {:error, err, state}
+        {:error, err, state |> inc(:failed)}
     end
 
   end
@@ -159,5 +159,7 @@ defmodule Load.Worker do
   end
 
   def now, do: DateTime.utc_now |> DateTime.to_unix(:millisecond)
+
+  def inc(state, k, amount \\ 1) when is_integer(amount), do: state |> Map.update!(k, &(&1+amount))
 
 end
