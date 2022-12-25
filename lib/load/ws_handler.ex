@@ -97,7 +97,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def websocket_info(message, state) do
-    Logger.warn("received  message:  #{inspect(message)}")
+    Logger.debug("received message:  #{inspect(message)}")
     {:ok, state}
   end
 
