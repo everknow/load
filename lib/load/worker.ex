@@ -18,7 +18,9 @@ defmodule Load.Worker do
     |> Map.merge(%{
       conn: nil,
       stream_ref: nil,
-      opts: %{retry: 0, ws_opts: %{keepalive: :timer.seconds(20), silence_pings: true}}
+      # opts: %{retry: 0, ws_opts: %{keepalive: :timer.seconds(20), silence_pings: true}}
+      opts: %{protocols: [:http], transport: :tcp},
+      last_ms: now()
     })
     |> Map.merge(args.sim.init())
     |> Map.merge(Stats.empty())
@@ -32,7 +34,6 @@ defmodule Load.Worker do
 
   @impl true
   def handle_info(:connect, %{"host" => host, "port" => port} = state) do
-    Logger.debug("connect state: #{inspect(state)}")
     case state["protocol"] do
       "http" ->
         case :gun.open(host |> String.to_charlist(), port, state.opts) do
@@ -66,11 +67,12 @@ defmodule Load.Worker do
     end
   end
 
-  def handle_info(:run, %{sim: sim, interval_ms: interval_ms} = state) do
+  def handle_info(:run, state) do
     state = state
-    |> sim.run()
-    |> Stats.maybe_update()
-    Process.send_after(self(), :run, interval_ms)
+    |> state.sim.run()
+    |> maybe_update()
+    if state["interval_ms"], do:
+      Process.send_after(self(), :run, state["interval_ms"])
     {:noreply, state}
   end
 
@@ -79,6 +81,19 @@ defmodule Load.Worker do
       {:noreply, sim.handle_message(message, state)}
     else
       {:noreply, state}
+    end
+  end
+
+  defp maybe_update(%{"stats_interval_ms" => stats_interval_ms} = state) do
+    dest = Local
+    now = now()
+    duration = now - state.last_ms
+    if duration > stats_interval_ms do
+      :pg.get_local_members(dest)
+      |> Enum.each(&send(&1, {:update, __MODULE__, state |> Map.take(Map.keys(Stats.empty()))}))
+      Map.merge(%{state | last_ms: now}, Stats.empty())
+    else
+      state
     end
   end
 
@@ -142,5 +157,7 @@ defmodule Load.Worker do
     if state[:group], do: :pg.leave(state.group, self())
     :normal
   end
+
+  def now, do: DateTime.utc_now |> DateTime.to_unix(:millisecond)
 
 end

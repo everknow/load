@@ -17,7 +17,7 @@ defmodule Stats do
     :pg.join(args.group, self())
     state = args
     |> Map.merge(%{
-      stats_interval_ms: apply(:timer,
+      "stats_interval_ms" => apply(:timer,
       Application.get_env(:load, :stats_timeunit, :seconds), [
       Application.get_env(:load, :stats_interval, 1)
       ]),
@@ -58,12 +58,12 @@ defmodule Stats do
     {:noreply, state}
   end
 
-  def maybe_update(state, dest \\ Local) do
+  defp maybe_update(%{"stats_interval_ms" => stats_interval_ms} = state, dest) do
     now = now()
     duration = now - state.last_ms
-    if duration > state.stats_interval_ms do
+    if duration > stats_interval_ms do
       %{
-        state | stats: state.stats
+        state | last_ms: now, stats: state.stats
         |> Map.to_list()
         |> Enum.map(fn {sim, stats} ->
           :pg.get_local_members(dest)
@@ -73,7 +73,7 @@ defmodule Stats do
           else
             stats
           end
-          {sim, Map.merge(stats, Stats.empty() |> Map.drop([:avg_latency]))}
+          {sim, Map.merge(stats, Stats.empty())}  # |> Map.drop([:avg_latency]) ?
         end)
         |> Enum.into(%{})
       }
@@ -91,6 +91,6 @@ defmodule Stats do
 
   def empty, do: @stats
 
-  defp now, do: DateTime.utc_now |> DateTime.to_unix(:millisecond)
+  def now, do: DateTime.utc_now |> DateTime.to_unix(:millisecond)
 
 end
