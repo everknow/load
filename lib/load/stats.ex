@@ -29,25 +29,23 @@ defmodule Stats do
   end
 
   @impl true
-  def handle_info({:update, sim, stats}, state) do
-    stats = case state.stats[sim] do
-      nil ->
-        if state["retain_history"] do
-          Map.put(stats, :history, [])
-        else
-          stats
-        end
-      _ ->
-        Map.merge(state.stats[sim], stats, fn k, v1, v2 ->
-          case k do
-            :history -> v1
-            :avg_latency -> if v1, do: (v1 + v2) / 2, else: v2
-            _ -> v1 + v2
+  def handle_info({:update, stats}, state) do
+    stats = stats
+    |> Map.new(fn {k, v} ->
+      if state.stats[k] do
+        {k, state.stats[k] |> Map.merge(v, fn k, v1, v2 ->
+          if k == :avg_latency do
+            if v1, do: (v1 + v2) / 2, else: v2
+          else
+            v1 + v2
           end
-        end)
-    end
+        end)}
+      else
+        {k, v}
+      end
+    end)
 
-    state = %{state | stats: Map.put(state.stats, sim, stats)}
+    state = %{state | stats: stats}
 
     state =
       case state.group do
@@ -62,18 +60,18 @@ defmodule Stats do
     now = now()
     duration = now - state.last_ms
     if duration > stats_interval_ms do
+      state = if state[:history] do
+        %{state | history: [{now, state.stats} | state.history]}
+      else
+        state
+      end
+      :pg.get_local_members(dest)
+      |> Enum.each(&send(&1, {:update, state.stats}))
       %{
         state | last_ms: now, stats: state.stats
         |> Map.to_list()
         |> Enum.map(fn {sim, stats} ->
-          :pg.get_local_members(dest)
-          |> Enum.each(&send(&1, {:update, sim, stats |> Map.drop([:history])}))
-          stats = if stats[:history] do
-            %{stats | history: [stats |> Map.drop([:history]) |> Map.put(:timestamp, now) | stats.history]}
-          else
-            stats
-          end
-          {sim, Map.merge(stats, Stats.empty())}  # |> Map.drop([:avg_latency]) ?
+          {sim, Map.merge(stats, Stats.empty())}
         end)
         |> Enum.into(%{})
       }

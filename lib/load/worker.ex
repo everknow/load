@@ -90,7 +90,7 @@ defmodule Load.Worker do
     duration = now - state.last_ms
     if duration > stats_interval_ms do
       :pg.get_local_members(dest)
-      |> Enum.each(&send(&1, {:update, state.sim, state |> Map.take(Map.keys(Stats.empty()))}))
+      |> Enum.each(&send(&1, {:update, %{"#{state.sim}": state |> Map.take(Map.keys(Stats.empty()))}}))
       Map.merge(%{state | last_ms: now}, Stats.empty())
     else
       state

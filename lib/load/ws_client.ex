@@ -29,12 +29,17 @@ defmodule Load.WSClient do
       %{"count" => count} ->
         IO.inspect({state.address, count})
       %{"update" => stats} ->
+        stats = stats
+        |> Map.new(fn {k,v} ->
+          {String.to_existing_atom(k), v |> Map.new(fn {k,v} ->
+            {String.to_existing_atom(k), v}
+          end)}
+        end)
         :pg.get_local_members(Global)
-        |> Enum.each(&send(&1, {:update, stats |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)}))
-      # TODO: handle in bulk?
-      %{"notify" => tx_hash} ->
-        :pg.get_local_members(Subscriber)
-        |> Enum.each(&send(&1, {:notify, tx_hash}))
+        |> Enum.each(&send(&1, {:update, stats }))
+      # %{"notify" => tx_hash} ->
+      #   :pg.get_local_members(Subscriber)
+      #   |> Enum.each(&send(&1, {:notify, tx_hash}))
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end
