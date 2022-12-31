@@ -69,7 +69,12 @@ defmodule Load.WSHandler do
         end)
         {:reply, {:text, Jason.encode!(%{count: count})}, state}
       %{"command" => "configure", "config" => config} ->
-        if config["config_mod"], do: String.to_existing_atom(config["config_mod"]).configure(config)
+        case Application.get_env(:load, :config_mod) do
+          nil ->
+            :ok
+          config_mod ->
+            config_mod.configure(config)
+        end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       _ ->
         # IO.puts("received #{message}")

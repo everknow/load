@@ -2,19 +2,19 @@ defmodule Load do
 
   require Logger
 
-  def scale(count, sim \\ nil) when is_integer(count) and count >= 0 do
+  def scale(count, sim, address \\ :all) when is_integer(count) and count >= 0 do
     sim = if sim, do: sim, else: Application.fetch_env!(:load, :sim)
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, _address = :all, %{command: "scale", sim: sim, count: count}})
+      GenServer.cast(pid, {:ws_send, address, %{command: "scale", sim: sim, count: count}})
       end)
   end
 
-  def count(sim \\ nil) do
+  def count(sim, address \\ :all) do
     sim = if sim, do: sim, else: Application.fetch_env!(:load, :sim)
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.map(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, _address = :all, %{command: "count", sim: sim}})
+      GenServer.cast(pid, {:ws_send, address, %{command: "count", sim: sim}})
       end)
     end
 
@@ -40,10 +40,11 @@ defmodule Load do
     children = children |> Enum.zip(1..count)
     children |> Enum.each(fn {{:undefined, pid, :worker, [Load.WSClient]}, n} ->
       GenServer.cast(pid, {:ws_send, address, %{command: "configure",
-      config: if config.config_mod do
-        config.config_mod.select(config, n, count)
-      else
-        config
+      config: case Application.get_env(:load, :config_mod) do
+        nil ->
+          config
+        config_mod ->
+          config_mod.select(config, n, count)
       end}})
       end)
   end

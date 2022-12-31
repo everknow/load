@@ -77,7 +77,8 @@ defmodule Load.Worker do
   end
 
   def handle_info(message, %{sim: sim} = state) do
-    if Keyword.has_key?(sim.__info__(:functions), :handle_info) do
+    has_handler = sim.__info__(:functions) |> Enum.member?({:handle_message, 2})
+    if has_handler do
       {:noreply, sim.handle_message(message, state)}
     else
       {:noreply, state}

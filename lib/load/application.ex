@@ -5,6 +5,12 @@ defmodule Load.Application do
   @spec start(any, any) :: {:error, any} | {:ok, pid}
   def start(_type, _args) do
 
+    case Application.get_env(:load, :config_mod) do
+      nil ->
+        :ok
+      config_mod ->
+        config_mod.init()
+    end
     children = [
       Plug.Cowboy.child_spec(
         scheme: :http,
@@ -35,7 +41,10 @@ defmodule Load.Application do
          {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}},
          {"/example/async", Plug.Cowboy.Handler, {Example.AsyncRouter, []}},
          {"/example/ws_async", Plug.Cowboy.Handler, {Example.AsyncWSHandler, []}}
-       ]}
+       ]
+       ++
+       Application.get_env(:load, :dispatch, [])
+      }
     ]
   end
 
