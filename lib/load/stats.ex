@@ -35,7 +35,11 @@ defmodule Stats do
       if state.stats[k] do
         {k, state.stats[k] |> Map.merge(v, fn k, v1, v2 ->
           if k == :avg_latency do
-            if v1, do: (v1 + v2) / 2, else: v2
+            cond do
+              is_nil(v2) -> v1
+              is_nil(v1) -> v2
+              true -> (v1 + v2) / 2
+            end
           else
             v1 + v2
           end
@@ -45,7 +49,7 @@ defmodule Stats do
       end
     end)
 
-    state = %{state | stats: stats}
+    state = %{state | stats: state.stats |> Map.merge(stats)}
 
     state =
       case state.group do
@@ -61,7 +65,7 @@ defmodule Stats do
     duration = now - state.last_ms
     if duration > stats_interval_ms do
       state = if state[:history] do
-        %{state | history: [{now, state.stats} | state.history]}
+        %{state | history: [{{now, make_ref()}, state.stats} | state.history]}
       else
         state
       end

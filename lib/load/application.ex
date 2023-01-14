@@ -24,7 +24,8 @@ defmodule Load.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Connection.Supervisor},
       %{id: :pg, start: {:pg, :start_link, []}},
       %{id: LocalStats, start: {GenServer, :start_link, [Stats, %{group: Local}, [name: LocalStats]]}},
-      %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, [name: GlobalStats]]}}
+      %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global}, [name: GlobalStats]]}}
+      # %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, [name: GlobalStats]]}}
 
     ]
     ++ Application.get_env(:load, :injected_children, [])
