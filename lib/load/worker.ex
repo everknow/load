@@ -4,7 +4,7 @@ defmodule Load.Worker do
 
   require Logger
 
-  @connect_delay 200
+  @default_connect_delay 200
   @req_timeout :timer.seconds(5)
 
   def start_link(glob, args \\ []), do: GenServer.start_link(__MODULE__, glob ++ args |> Enum.into(%{}) )
@@ -27,7 +27,14 @@ defmodule Load.Worker do
 
     if state[:group], do: :pg.join(state.group, self())
 
-    Process.send_after(self(), :connect, @connect_delay)
+    connect_delay =
+      if state["interval_ms"] do
+        :rand.uniform(state["interval_ms"])
+      else
+        @default_connect_delay
+      end
+
+    Process.send_after(self(), :connect, connect_delay)
 
     {:ok, state}
   end
