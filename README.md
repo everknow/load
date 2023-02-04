@@ -1,6 +1,9 @@
 # Load
 
-Major change to 0.2.0-rc1:
+- 0.3.0:
+Stability and use of gun 2.0.0
+
+- 0.2.0-rc1:
 sim is not passed via config any longer -> it is now passed via scale and count
 
 ## Installation
@@ -11,7 +14,7 @@ by adding `load` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:load, "~> 0.1.0"}
+    {:load, "~> 0.3.0"}
   ]
 end
 ```
