@@ -79,7 +79,9 @@ defmodule Load.WSHandler do
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"next_id_batch" => next_id_batch} ->
+        Logger.debug(next_id_batch, label: "received batch")
         send(IdAllocated, {:next_id_batch, next_id_batch})
+        {:ok, state}
       _ ->
         # IO.puts("received #{message}")
         {:reply, {:text, "invalid"}, state}
@@ -96,6 +98,12 @@ defmodule Load.WSHandler do
   def websocket_info({:update, stats}, state) do
     Logger.debug("forwarding stats")
     {:reply, {:text, Jason.encode!(%{update: stats})}, state}
+  end
+
+  @impl true
+  def websocket_info(:ask_new_batch, state) do
+    Logger.debug("asking new batch")
+    {:reply, {:text, Jason.encode!(%{ask_new_batch: nil})}, state}
   end
 
   @impl true

@@ -4,7 +4,6 @@ defmodule Load.Id.Sequence do
 
   @impl true
   def init(args) do
-    :erlang.register(__MODULE__, self())
     state = args
     |> Map.merge(%{
       next_id_batch_size: Application.get_env(Load, :next_id_batch_size, 10)
@@ -20,7 +19,8 @@ defmodule Load.Id.Sequence do
   @impl true
   def handle_call(:next_id_batch , _from, state) do
     if state.next_id do
-      {:reply, state.next_token_id..state.next_token_id+(state.next_id_batch_size - 1), %{state | next_token_id: state.next_token_id + state.next_id_batch_size}}
+      next_id = state.next_id + state.next_id_batch_size
+      {:reply, state.next_id..(next_id - 1) |> Enum.into([]), %{state | next_id: next_id}}
     else
       {:reply, [], state}
     end
