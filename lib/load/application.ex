@@ -23,6 +23,8 @@ defmodule Load.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Worker.Supervisor}, #, extra_arguments: [[a: :b]]}
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Connection.Supervisor},
       %{id: :pg, start: {:pg, :start_link, []}},
+      %{id: IdSequence, start: {GenServer, :start_link, [Load.Id.Sequence, %{}, [name: IdSequence]]}},
+      %{id: IdAllocated, start: {GenServer, :start_link, [Load.Id.Allocated, %{}, [name: IdAllocated]]}},
       %{id: LocalStats, start: {GenServer, :start_link, [Stats, %{group: Local}, [name: LocalStats]]}},
       %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global}, [name: GlobalStats]]}}
       # %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, [name: GlobalStats]]}}

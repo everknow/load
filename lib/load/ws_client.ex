@@ -37,9 +37,9 @@ defmodule Load.WSClient do
         end)
         :pg.get_local_members(Global)
         |> Enum.each(&send(&1, {:update, stats }))
-      # %{"notify" => tx_hash} ->
-      #   :pg.get_local_members(Subscriber)
-      #   |> Enum.each(&send(&1, {:notify, tx_hash}))
+      "next_id_batch" ->
+        next_id_batch = GenServer.call(IdSequence, :next_id_batch)
+        :gun.ws_send(state.conn, state.stream_ref, {:text, Jason.encode!(%{"next_id_batch" => next_id_batch})})
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end

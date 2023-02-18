@@ -78,6 +78,8 @@ defmodule Load.WSHandler do
             config_mod.configure(config)
         end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+      %{"next_id_batch" => next_id_batch} ->
+        send(IdAllocated, {:next_id_batch, next_id_batch})
       _ ->
         # IO.puts("received #{message}")
         {:reply, {:text, "invalid"}, state}
