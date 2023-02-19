@@ -10,6 +10,10 @@ defmodule Load do
       end)
   end
 
+  def autoscale(config) do
+    send(Scaler, {:configure, config})
+  end
+
   def count(sim, address \\ :all) do
     sim = if sim, do: sim, else: Application.fetch_env!(:load, :sim)
     DynamicSupervisor.which_children(Load.Connection.Supervisor)

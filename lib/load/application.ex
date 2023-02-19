@@ -25,6 +25,7 @@ defmodule Load.Application do
       %{id: :pg, start: {:pg, :start_link, []}},
       %{id: IdSequence, start: {GenServer, :start_link, [Load.Id.Sequence, %{}, [name: IdSequence]]}},
       %{id: IdAllocated, start: {GenServer, :start_link, [Load.Id.Allocated, %{}, [name: IdAllocated]]}},
+      %{id: Scaler, start: {GenServer, :start_link, [Load.Scaler, %{}, [name: Scaler]]}},
       %{id: LocalStats, start: {GenServer, :start_link, [Stats, %{group: Local}, [name: LocalStats]]}},
       %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global}, [name: GlobalStats]]}}
       # %{id: GlobalStats, start: {GenServer, :start_link, [Stats, %{group: Global, history: []}, [name: GlobalStats]]}}
