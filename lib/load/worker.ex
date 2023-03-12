@@ -75,11 +75,11 @@ defmodule Load.Worker do
   end
 
   def handle_info(:run, state) do
+    if state["interval_ms"], do:
+      Process.send_after(self(), :run, state["interval_ms"])
     state = state
     |> state.sim.run()
     |> maybe_update()
-    if state["interval_ms"], do:
-      Process.send_after(self(), :run, state["interval_ms"])
     {:noreply, state}
   end
 
@@ -115,9 +115,20 @@ defmodule Load.Worker do
           [verb, path] = String.split(target, " ")
           case verb do
             "POST" ->
-              Logger.debug("hitting http://#{state["host"]}:#{state["port"]}#{path}")
+              Logger.debug("POST hitting http://#{state["host"]}:#{state["port"]}#{path}")
               {latency, res} = :timer.tc(fn ->
                 post_ref = :gun.post(conn, "#{path}", headers, payload)
+                handle_http_result(post_ref, state |> inc(:requests))
+              end)
+              case res do
+                {:ok, p, s} when s.avg_latency -> {:ok, p, %{s | avg_latency: (s.avg_latency + latency/1000) / 2}}
+                {:ok, p, s} -> {:ok, p, %{s | avg_latency: latency/1000}}
+                pass -> pass
+              end
+            "GET" ->
+              Logger.debug("GET hitting http://#{state["host"]}:#{state["port"]}#{path}")
+              {latency, res} = :timer.tc(fn ->
+                post_ref = :gun.get(conn, "#{path}", headers)
                 handle_http_result(post_ref, state |> inc(:requests))
               end)
               case res do
