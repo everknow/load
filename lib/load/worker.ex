@@ -156,7 +156,8 @@ defmodule Load.Worker do
             case :gun.await_body(conn, post_ref, @req_timeout) do
               {:ok, payload} ->
                 Map.get(state, :payload_process_fun, fn payload, _code, state ->
-                  {:ok, payload, state |> inc(:succeeded)}
+                  is_poller = state.sim |> :erlang.atom_to_binary() |> String.ends_with?("Poller")
+                  {:ok, payload, (if is_poller, do: state, else: state |> inc(:succeeded))}
                 end).(payload, code, state)
               err ->
                 {:error, err, state |> inc(:failed) }
