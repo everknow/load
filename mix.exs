@@ -26,10 +26,9 @@ defmodule Load.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:gun, "~> 2.0"},
+      {:gun, "~> 2.0.1"},
       {:jason, "~> 1.4"},
-      {:plug_cowboy, "~> 2.6"},
-      {:cowlib, "~> 2.12", override: true}
+      {:cowboy, "~> 2.10.0"}
     ]
   end
 

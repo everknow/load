@@ -11,15 +11,14 @@ defmodule Load.Application do
       config_mod ->
         config_mod.init()
     end
+
+
+  {:ok, _} = :cowboy.start_clear(:my_http_listener,
+      [{:port,  Application.get_env(:load, :ws_port, 8888)}],
+      %{env: %{dispatch: :cowboy_router.compile(dispatch())}}
+  )
+
     children = [
-      Plug.Cowboy.child_spec(
-        scheme: :http,
-        plug: Load.Router,
-        options: [
-          port: Application.get_env(:load, :ws_port, 8888),
-          dispatch: dispatch()
-        ]
-      ),
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Worker.Supervisor}, #, extra_arguments: [[a: :b]]}
       {DynamicSupervisor, strategy: :one_for_one, name: Load.Connection.Supervisor},
       %{id: :pg, start: {:pg, :start_link, []}},
@@ -42,6 +41,8 @@ defmodule Load.Application do
       {:_,
        [
          {"/ws", Load.WSHandler, []},
+         {"/start", Load.StartHandler, []},
+         {"/health", Load.HealthHandler, []},
          {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}},
          {"/example/async", Plug.Cowboy.Handler, {Example.AsyncRouter, []}},
          {"/example/ws_async", Plug.Cowboy.Handler, {Example.AsyncWSHandler, []}}
