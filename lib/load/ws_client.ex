@@ -40,6 +40,8 @@ defmodule Load.WSClient do
       %{"ask_new_batch" => _} ->
         next_id_batch = GenServer.call(IdSequence, :next_id_batch)
         :gun.ws_send(state.conn, state.stream_ref, {:text, Jason.encode!(%{"next_id_batch" => next_id_batch})})
+      %{"prep_accounts" => account_ids} ->
+        send(PrepAccounts, {:prep_accounts, account_ids})
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end

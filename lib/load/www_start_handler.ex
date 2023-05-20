@@ -7,10 +7,13 @@ defmodule Load.StartHandler do
 
     :timer.sleep(3000)
 
-    Load.setup(config)
+    #TODO start preparer(faucet, smart contract deployment etcetc..) as specified in config
+    
+    Supervisor.start_child(Load.Supervisor, %{id: PrepAccounts, start: {GenServer, :start_link, [Load.Container, %{os_dir: "/home/dperini/dev/zerg/faucet/target/debug", os_command: "./faucet", start_command: "cosmos#10000#src#domcosmosdom#0#1#power forum anger wash problem innocent rifle emerge culture offer among palace essay maid junior spin wife meat six gasp two rough boat marble\n", count: 0}, [name: PrepAccounts]]}})
+
+    Load.configure(config) # for the other nodes (slaves)
 
     Load.autoscale(config)
-    # Load.scale(1, Sim.Poller)
 
     req = :cowboy_req.reply(200, 
       %{"content-type" => "text/plain"},

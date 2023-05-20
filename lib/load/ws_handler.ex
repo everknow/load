@@ -56,6 +56,7 @@ defmodule Load.WSHandler do
             DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, sim: sim})
           end)
         end
+        send(Producer, {count: count})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"command" => "count", "sim" => sim} ->
         sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim
@@ -71,12 +72,9 @@ defmodule Load.WSHandler do
         end)
         {:reply, {:text, Jason.encode!(%{count: count})}, state}
       %{"command" => "configure", "config" => config} ->
-        case Application.get_env(:load, :config_mod) do
-          nil ->
-            :ok
-          config_mod ->
-            config_mod.configure(config)
-        end
+        # TODO start gen from config
+        Supervisor.start_child(Load.Supervisor, %{id: Producer, start: {GenServer, :start_link, [Load.Container, %{os_dir: "/home/dperini/dev/zerg/gen/target/debug", os_command: "./gen", start_command: "#{config.count}#cosmos#10000#src#domcosmosdom\n", count: config.count}, [name: Producer]]}})
+
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"next_id_batch" => next_id_batch} ->
         Logger.debug(next_id_batch, label: "received batch")
@@ -104,6 +102,12 @@ defmodule Load.WSHandler do
   def websocket_info(:ask_new_batch, state) do
     Logger.debug("asking new batch")
     {:reply, {:text, Jason.encode!(%{ask_new_batch: nil})}, state}
+  end
+
+  @impl true
+  def websocket_info({:prep_accounts, message}, state) do
+    Logger.debug("prep_accounts")
+    {:reply, {:text, Jason.encode!(%{prep_accounts: message})}, state}
   end
 
   @impl true
