@@ -56,7 +56,7 @@ defmodule Load.WSHandler do
             DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, sim: sim})
           end)
         end
-        send(Producer, {count: count})
+        send(Producer, {:count, count})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"command" => "count", "sim" => sim} ->
         sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim

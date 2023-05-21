@@ -1,0 +1,50 @@
+name: Release action
+run-name: ${{ github.actor }} running release 🚀
+on:
+  push:
+    branches:
+      ["releases"]
+jobs:
+  releases:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Job description
+        run: echo "🔎 Job triggered by a ${{ github.event_name }} event, on branch ${{ github.ref }}, on repo ${{ github.repository }}."
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Check Tag
+        run: |
+          tag=$(grep -oP "^\W+version: \"\K[\d.]+" mix.exs)
+          stop=$(git tag -l | grep -q "^$tag$")
+          if $stop; then echo "stop=stop" >> $GITHUB_OUTPUT; fi 
+          echo "TAG=$tag" >> $GITHUB_ENV
+      - name: Maybe Stop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run cancel ${{ github.run_id }}
+          gh run watch ${{ github.run_id }}
+        if: ${{ steps.vars.outputs.stop }} == stop
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: 25
+          elixir-version: 1.14.4
+      - name: Build
+        run: |
+          MIX_ENV=prod mix deps.get 
+          MIX_ENV=prod mix release
+      - name: Create archive
+        run: |
+          cd _build/prod/rel/
+          mkdir tar
+          tar zcvf tar/load_$TAG_Linux_amd64.tar.gz load
+      - name: Publish the release
+        uses: avakar/tag-and-release@v1
+        with:
+          tag_name: ${{ env.TAG }}
+          files: _build/prod/rel/tar/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
