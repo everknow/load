@@ -17,16 +17,14 @@ jobs:
       - name: Check Tag
         run: |
           tag=$(grep -oP "^\W+version: \"\K[\d.]+" mix.exs)
-          stop=$(git tag -l | grep -q "^$tag$")
-          if $stop; then echo "stop=stop" >> $GITHUB_OUTPUT; fi 
+          if git tag -l | grep -q "^$tag$"; then echo "STOP=stop" >> $GITHUB_ENV; fi 
           echo "TAG=$tag" >> $GITHUB_ENV
       - name: Maybe Stop
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run cancel ${{ github.run_id }}
-          gh run watch ${{ github.run_id }}
-        if: ${{ steps.vars.outputs.stop }} == stop
+          if [[ "${STOP}" == "stop" ]]; then gh run cancel ${{ github.run_id }}; fi
+          if [[ "${STOP}" == "stop" ]]; then gh run watch ${{ github.run_id }}; fi
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -40,9 +38,9 @@ jobs:
         run: |
           cd _build/prod/rel/
           mkdir tar
-          tar zcvf tar/load_$TAG_Linux_amd64.tar.gz load
-      - name: Publish the release
-        uses: avakar/tag-and-release@v1
+          tar zcvf tar/load_${TAG}_Linux_amd64.tar.gz load
+      - name: Publish the Release
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.TAG }}
           files: _build/prod/rel/tar/*
