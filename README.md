@@ -1,5 +1,10 @@
 # Load
 
+## to build a release for testing
+```shell
+MIX_ENV=prod mix release
+```
+
 - 0.3.0:
 Stability and use of gun 2.0.0
 

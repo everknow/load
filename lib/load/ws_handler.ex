@@ -28,40 +28,62 @@ defmodule Load.WSHandler do
   @impl true
   def websocket_handle({:text, message}, state) do
     case Jason.decode!(message) do
+
+      %{"command" => "configure", "config" => config} ->
+
+        if config["gen"], do:
+          Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, 
+            %{os_command: config["gen"]["exe"], start_command: config["gen"]["cfg"], serializer_cfg: config["serializer"]}, [name: Gen]]
+          }})
+        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
       %{"command" => "terminate"} ->
-        Supervisor.which_children(Load.Worker.Supervisor)
+        Supervisor.which_children(Load.Hitter.Supervisor)
         |> Enum.each(fn {:undefined, pid, :worker, [Load.Worker]} ->
-          DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+          DynamicSupervisor.terminate_child(Load.Hitter.Supervisor, pid)
         end)
         {:stop, state}
-      %{"command" => "scale", "sim" => sim, "count" => count} ->
+      
+      %{"command" => "scale", "config" => config} ->
+        sims = config["sims"]
+        sim = config["sim"]
         sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim
         sim = sim |> String.to_existing_atom()
-        count = Supervisor.which_children(Load.Worker.Supervisor)
-        |> Enum.reduce(count, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
+        increment = Supervisor.which_children(Load.Hitter.Supervisor)
+        |> Enum.reduce(sims, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
           case pid |> :sys.get_state() do
             %{sim: ^sim} ->
               acc = acc - 1
               if acc < 0 do
-                DynamicSupervisor.terminate_child(Load.Worker.Supervisor, pid)
+                DynamicSupervisor.terminate_child(Load.Hitter.Supervisor, pid)
               end
               acc
             _ ->
               acc
           end
         end)
-        if count > 0 do
-          1..count
+        if increment > 0 do
+          1..increment
           |> Enum.each(fn _ ->
-            DynamicSupervisor.start_child(Load.Worker.Supervisor, {Load.Worker, sim: sim})
+            ret = DynamicSupervisor.start_child(Load.Hitter.Supervisor, {Load.Worker, [
+              sim: sim,
+              host: Enum.random(config["hit_hosts"]),
+              port: config["rpc_port"],
+              protocol: config["protocol"],
+              statement: config["statement"],
+              interval_ms: apply(:timer, config["worker_tick_timeunit"] |> String.to_atom(), [config["worker_tick_interval"]]),
+              stats_interval_ms: apply(:timer, config["stats_tick_timeunit"] |> String.to_atom(), [config["stats_tick_interval"]])
+              ] ++ (config |> Map.take([]) |> Map.to_list() |> Enum.map(fn {k,v} -> {String.to_atom(k), v} end))
+            })
+            Logger.debug("spawned child ret: #{inspect(ret)}")
           end)
         end
-        send(Producer, {:count, count})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+      
       %{"command" => "count", "sim" => sim} ->
         sim = if String.starts_with?(sim, "Elixir."), do: sim, else: "Elixir."<>sim
         sim = sim |> String.to_existing_atom()
-        count = Supervisor.which_children(Load.Worker.Supervisor)
+        count = Supervisor.which_children(Load.Hitter.Supervisor)
         |> Enum.reduce(0, fn {:undefined, pid, :worker, [Load.Worker]}, acc ->
           case pid |> :sys.get_state() do
             %{sim: ^sim} ->
@@ -71,11 +93,7 @@ defmodule Load.WSHandler do
           end
         end)
         {:reply, {:text, Jason.encode!(%{count: count})}, state}
-      %{"command" => "configure", "config" => config} ->
-        # TODO start gen from config
-        Supervisor.start_child(Load.Supervisor, %{id: Producer, start: {GenServer, :start_link, [Load.Container, %{os_dir: "/home/dperini/dev/zerg/gen/target/debug", os_command: "./gen", start_command: "#{config.count}#cosmos#10000#src#domcosmosdom\n", count: config.count}, [name: Producer]]}})
 
-        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
       %{"next_id_batch" => next_id_batch} ->
         Logger.debug(next_id_batch, label: "received batch")
         send(IdAllocated, {:next_id_batch, next_id_batch})
@@ -99,6 +117,12 @@ defmodule Load.WSHandler do
   end
 
   @impl true
+  def websocket_info({:reg, payload}, state) do
+    Logger.debug("forwarding reg result")
+    {:reply, {:text, Jason.encode!(%{reg: payload})}, state}
+  end
+
+  @impl true
   def websocket_info(:ask_new_batch, state) do
     Logger.debug("asking new batch")
     {:reply, {:text, Jason.encode!(%{ask_new_batch: nil})}, state}
@@ -106,7 +130,7 @@ defmodule Load.WSHandler do
 
   @impl true
   def websocket_info({:prep_accounts, message}, state) do
-    Logger.debug("prep_accounts")
+    Logger.debug("ws prep_accounts")
     {:reply, {:text, Jason.encode!(%{prep_accounts: message})}, state}
   end
 

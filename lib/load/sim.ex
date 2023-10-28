@@ -1,6 +1,6 @@
 defmodule Load.Sim do
 
-  @callback init() :: map()
+  @callback init(map()) :: map()
   @callback run(map()) :: map()
   @callback handle_message(any(), map()) :: map()
 

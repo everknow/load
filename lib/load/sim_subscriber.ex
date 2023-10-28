@@ -1,15 +1,15 @@
-defmodule Example.AsyncSubscribeSim do
+defmodule Sim.Subscriber do
 
   @behaviour Load.Sim
 
   require Logger
 
+  # group: RefSubscribers
   @impl true
-  def init do
-    Application.get_env(:load, __MODULE__, %{})
+  def init(state) do
+    state
     |> Map.merge(%{
-      pending: %{},
-      group: RefSubscribers
+      pending: %{}
     })
   end
 

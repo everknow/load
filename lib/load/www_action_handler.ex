@@ -1,17 +1,11 @@
-defmodule Load.StartHandler do
+defmodule Load.ActionHandler do
 
   require Logger
 
   def init(req = %{method: "POST"}, state) do
     {:ok, data, req} = :cowboy_req.read_body(req)
-    config = Jason.decode!(data)
-    Logger.warn("#{inspect(config)}")
-    
-    :timer.sleep(3000)
-    
-    Load.configure(config |> Map.take(["gen"]))
 
-    Load.autoscale(config |> Map.drop(["gen"]))
+    send(Prep, {:action, data})
 
     req = :cowboy_req.reply(200, 
       %{"content-type" => "text/plain"},

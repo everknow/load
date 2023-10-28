@@ -22,14 +22,15 @@ defmodule Load.Worker do
       opts: %{protocols: [:http], transport: :tcp},
       last_ms: now()
     })
-    |> Map.merge(args.sim.init())
+    |> args.sim.init()
     |> Map.merge(Stats.empty())
 
     if state[:group], do: :pg.join(state.group, self())
 
+    Logger.info("worker state: #{inspect(state)}")
     connect_delay =
-      if state["interval_ms"] do
-        :rand.uniform(state["interval_ms"])
+      if state.interval_ms do
+        :rand.uniform(state.interval_ms)
       else
         @default_connect_delay
       end
@@ -40,8 +41,8 @@ defmodule Load.Worker do
   end
 
   @impl true
-  def handle_info(:connect, %{"host" => host, "port" => port} = state) do
-    case state["protocol"] do
+  def handle_info(:connect, %{host: host, port: port} = state) do
+    case state.protocol do
       "http" ->
         case :gun.open(host |> String.to_charlist(), port, state.opts) do
           {:ok, conn} ->
@@ -75,8 +76,8 @@ defmodule Load.Worker do
   end
 
   def handle_info(:run, state) do
-    if state["interval_ms"], do:
-      Process.send_after(self(), :run, state["interval_ms"])
+    if state.interval_ms, do:
+      Process.send_after(self(), :run, state.interval_ms)
     state = state
     |> state.sim.run()
     |> maybe_update()
@@ -92,11 +93,11 @@ defmodule Load.Worker do
     end
   end
 
-  defp maybe_update(%{"stats_interval_ms" => stats_interval_ms} = state) do
+  def maybe_update(state) do
     dest = Local
     now = now()
     duration = now - state.last_ms
-    if duration > stats_interval_ms do
+    if duration > state.stats_interval_ms do
       :pg.get_local_members(dest)
       |> Enum.each(&send(&1, {:update, %{"#{state.sim}": state |> Map.take(Map.keys(Stats.empty()))}}))
       Map.merge(%{state | last_ms: now}, Stats.empty())
@@ -106,7 +107,7 @@ defmodule Load.Worker do
   end
 
   def hit(target, headers, payload, %{conn: conn} = state) do
-    case state["protocol"] do
+    case state.protocol do
       "http" ->
         if state["ws"] do
           :ok = :gun.ws_send(conn, state.stream_ref, payload)
@@ -115,7 +116,7 @@ defmodule Load.Worker do
           [verb, path] = String.split(target, " ")
           case verb do
             "POST" ->
-              Logger.debug("POST hitting http://#{state["host"]}:#{state["port"]}#{path}")
+              Logger.debug("POST hitting http://#{state.host}:#{state.port}#{path}")
               {latency, res} = :timer.tc(fn ->
                 post_ref = :gun.post(conn, "#{path}", headers, payload)
                 handle_http_result(post_ref, state |> inc(:requests))
@@ -126,7 +127,7 @@ defmodule Load.Worker do
                 pass -> pass
               end
             "GET" ->
-              Logger.debug("GET hitting http://#{state["host"]}:#{state["port"]}#{path}")
+              Logger.debug("GET hitting http://#{state.host}:#{state.port}#{path}")
               {latency, res} = :timer.tc(fn ->
                 post_ref = :gun.get(conn, "#{path}", headers)
                 handle_http_result(post_ref, state |> inc(:requests))
@@ -144,7 +145,7 @@ defmodule Load.Worker do
         :gen_tcp.send(conn, payload)
         {:ok, nil, state |> inc(:requests)}
       _ ->
-        {:error , "unknown protocol #{state[:protocol]}", state |> inc(:failed)}
+        {:error , "unknown protocol #{state.protocol}", state |> inc(:failed)}
     end
   end
 

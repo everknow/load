@@ -37,11 +37,14 @@ defmodule Load.WSClient do
         end)
         :pg.get_local_members(Global)
         |> Enum.each(&send(&1, {:update, stats }))
+      %{"reg" => %{"uuid" => uuid, "result" => result}} ->
+        :ets.insert(RegResult, {uuid, result})
       %{"ask_new_batch" => _} ->
         next_id_batch = GenServer.call(IdSequence, :next_id_batch)
         :gun.ws_send(state.conn, state.stream_ref, {:text, Jason.encode!(%{"next_id_batch" => next_id_batch})})
-      %{"prep_accounts" => account_ids} ->
-        send(PrepAccounts, {:prep_accounts, account_ids})
+      %{"prep" => message} ->
+        Logger.info("[#{__MODULE__}] prep #{message}")
+        send(Prep, {:prep, message})
       _ ->
         Logger.error("[#{__MODULE__}] invalid")
     end

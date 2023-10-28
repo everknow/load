@@ -5,7 +5,7 @@ defmodule Example.EchoSim do
   require Logger
 
   @impl true
-  def init do
+  def init(_state) do
     Application.get_env(:load, __MODULE__, %{})
   end
 
