@@ -4,22 +4,13 @@ defmodule Sim.Poller do
 
   require Logger
 
-  # group: Poller 
-  # "pos_selector" => ["block", "header", "height"],
-  # "pos_decode" => "from_dec", # "from_hex"
-  # "pos_encode" => "to_hex"
-  # "content_selector" => ["block", "data", "txs"], ["result", "transactions"]
-  # "content_decode" => "from_base64", # "noop"
-  # "target" => "GET /cosmos/base/tendermint/v1beta1/blocks/X XPOSX X", "POST /"
-  # "payload" => "{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["X XPOS X X", false],"id":1}"
-  # "host" => System.get_env("HOST"),
-  # "port" => 1317,
-  # "pos_from" => "latest",
-  # "pos_to" => 1,
+  import Load.Worker, only: [inc: 2, maybe_update: 1, now: 0, hit: 4]
+
   @impl true
   @spec init(map()) :: map()
   def init(state) do
 
+    Logger.debug("[#{__MODULE__}] init state: #{inspect(state)}")
     %{
       interval_ms: :timer.seconds(5),
       stats_interval_ms: :timer.seconds(5),
@@ -36,34 +27,39 @@ defmodule Sim.Poller do
   end
 
   @impl true
-  def handle_message({:register, ref}, state) do
-    %{state | pending: state.pending |> Map.put(ref, now())}
-  end
-
-  @impl true
   @spec run(map()) :: map()
   def run(state) do
 
-    pos = if state.pos, do: state.pos, else: state.pos_from
+    state
+    |> process(state.pos_from)
+    |> expire()
 
-    {:ok, res, state} = Load.Worker.hit(
-      String.replace(state.statement, "X XPOSX X", pos |> state.pos_encode.()), state.http_headers,
-      String.replace(state.payload, "X XPOSX X", pos |> state.pos_encode.()), state)
+  end
+
+  defp process(state, pos) do
+
+    {:ok, res, state} = hit(
+      String.replace(state.statement, "X XPOSX X", (if is_binary(pos), do: pos, else: pos |> state.pos_encode.())), state.http_headers,
+      (if state.payload == "", do: "", else: String.replace(Jason.encode!(state.payload), "X XPOSX X", (if is_binary(pos), do: pos, else: pos |> state.pos_encode.()))),
+      state)
+    
+    Logger.debug("response #{inspect(res)}")
 
     res = Jason.decode!(res)
 
     pos = get_in(res, state.pos_selector) |> state.pos_decode.()
-    Logger.info("[#{__MODULE__}] processing pos: #{pos}")
+    Logger.debug("[#{__MODULE__}] processing pos: #{pos}")
 
-    if pos > state.pos_to do
-      run(Map.put(state, :pos, "#{pos - 1}"))
-      |> Enum.reduce(fn content_raw, state ->
+    state = if pos > state.pos_to do
+      get_in(res, state.content_selector)
+      |> Enum.reduce(process(state, pos - 1), fn content_raw, state ->
         content = content_raw |> state.content_decode.()
+        Logger.debug("[#{__MODULE__}] content: #{inspect(content)}")
         case state.pending |> Map.pop(content) do
           {nil, _} ->
             state
           {ts, pending} ->
-            Logger.warn("[#{__MODULE__}] processed: #{inspect({ts, pending})}")
+            Logger.debug("[#{__MODULE__}] processed: #{inspect({ts, pending})}")
             latency = now() - ts
             avg_latency = if state[:avg_latency] do
               (state.avg_latency + latency) /2
@@ -72,16 +68,30 @@ defmodule Sim.Poller do
             end
             %{state | pending: pending, avg_latency: avg_latency, succeeded: state.succeeded + 1}
         end
-      end, get_in(res, state.content_selector))
+      end)
     else
       state
     end
 
+    if state[:pos], do: state, else: %{state | pos_to: pos} |> Map.delete(:pos)
+
   end
 
-  defp now, do: DateTime.utc_now |> DateTime.to_unix(:millisecond)
-  defp from_dec(x), do: String.to_integer(x)
-  defp to_dec(x), do: "#{x}"
+  defp expire(state) do
+    now = now()
+    count = Enum.count(state.pending)
+    pending = state.pending |> Map.reject(fn {_k, v} -> now > v + 60000 end)
+    %{state | pending: pending, failed: state.failed + (count - Enum.count(pending))}
+  end
+
+  @impl true
+  def handle_message({:reg, ref}, state) do
+    Logger.debug("[#{__MODULE__}] reg #{inspect(ref)}")
+    %{state | pending: state.pending |> Map.put(ref, now())} |> inc(:requests)
+  end
+
+  def from_dec(x), do: String.to_integer(x)
+  def to_dec(x), do: "#{x}"
   def from_hex("0x"<>x), do: x |> String.downcase() |> String.to_integer(16)
   def to_hex(x), do: "0x#{x |> Integer.to_string(16) |> String.downcase()}"
   def from_base64(x), do: x |> Base.decode64!() |> fn x -> :crypto.hash(:sha256, x) |> Base.encode16() end.()

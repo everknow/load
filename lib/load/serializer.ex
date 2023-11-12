@@ -4,9 +4,14 @@ defmodule Load.Serializer do
 
   require Logger
 
-  defdelegate inc(state, k, amount \\ 1), to: Load.Worker, as: :inc
+  import Load.Worker, only: [inc: 2, maybe_update: 1, now: 0]
 
-  def start_link(glob, args \\ []), do: GenServer.start_link(__MODULE__, glob ++ args |> Enum.into(%{}) )
+  @req_timeout :timer.seconds(5)
+
+  def start_link(args, glob \\ []) do
+    Logger.debug("[#{__MODULE__}] statr_link #{inspect(glob)} #{inspect(args)}") 
+    GenServer.start_link(__MODULE__, (glob |> Enum.into(%{})) |> Map.merge(args)  )
+  end
 
   # host |> String.to_charlist()
   # ws |> String.to_charlist()
@@ -16,24 +21,33 @@ defmodule Load.Serializer do
 
     state = args
     |> Map.merge(%{
-      host: args["serializer"]["hit_host"] |> to_charlist(),
-      port: args["serializer"]["hit_port"],
-      protocol: args["serializer"]["protocol"]
+      host: args["common"]["hit_host"] |> to_charlist(),
+      port: args["common"]["hit_port"],
+      protocol: args["serializer"]["protocol"],
+      pos_selector: args["serializer"]["pos_selector"],
+      conn: nil,
+      last_ms: now(),
+      opts: %{protocols: [:http], transport: :tcp},
+      http_headers: [{"Content-Type", "application/json"}],
+      stats_interval_ms: :timer.seconds(5),
+      sim: Submitted
     })
-    |> then(fn m -> if args["statement"] do
-        [verb, path] = String.split(args["statement"], " ")
-        m |> Map.merge(%{verb: verb, path: path})
+    |> then(fn m -> if args["serializer"]["statement"] do
+        [verb, path] = String.split(args["serializer"]["statement"], " ")
+        m |> Map.merge(%{verb: verb |> String.to_existing_atom(), path: path})
       else
         m
       end
     end)
-    |> Map.drop("serializer")
+    |> Map.merge(Stats.empty())
+    |> Map.drop(["serializer", "common"])
 
     {:ok, state}
   end
 
   @impl true
   def handle_info({:hit, payload}, state) do
+    Logger.debug("[#{__MODULE__}] #{inspect(payload)} #{inspect(state)}")
     state = if state.conn, do: state, else: connect(state)
 
     if state.conn do
@@ -45,21 +59,48 @@ defmodule Load.Serializer do
         
         "http" ->
           {latency, res} = :timer.tc(fn ->
-            post_ref = apply(:gun, state.verb, [state.conn, state.path, state.headers] ++ (if state.verb == :get, do: [], else: [payload]))
-            Load.Worker.handle_http_result(post_ref, state |> inc(:requests))
+            post_ref = apply(:gun, state.verb, [state.conn, state.path, state.http_headers] ++ (if state.verb == :get, do: [], else: [payload]))
+            state = state |> inc(:requests)
+            case :gun.await(state.conn, post_ref, @req_timeout) do
+              {:response, _, code, _resp_headers} ->
+                cond do
+                  div(code, 100) == 2 ->
+                    case :gun.await_body(state.conn, post_ref, @req_timeout) do
+                      {:ok, payload} ->
+                        ref = get_in(Jason.decode!(payload), state.pos_selector)
+                        Logger.debug("[#{__MODULE__}] ref #{inspect(ref)}")
+                        :pg.get_local_members(WS)
+                        |> Enum.each(&send(&1, {:reg, ref}))
+                        {:ok, payload, state |> inc(:succeeded)}
+                      err ->
+                        {:error, err, state |> inc(:failed) }
+                    end
+        
+                  :else ->
+                    {:error, "response code #{code}", state |> inc(:failed)}
+                end
+              err->
+                {:error, err, state |> inc(:failed)}
+            end
           end)
           case res do
-            {:ok, _data, state} -> {:noreply, Map.update(state, :avg_latency, latency/1000, &((&1+latency/1000)/2)) |> Load.Worker.maybe_update()}
-            _ -> {:noreply, state |> Load.Worker.maybe_update()}
+            {:ok, _data, state} -> {:noreply, Map.update(state, :avg_latency, latency/1000, fn avg_latency ->
+              if avg_latency do
+                (avg_latency + latency/1000) / 2
+              else
+                latency/1000
+              end
+            end ) |> maybe_update()}
+            _ -> {:noreply, state |> maybe_update()}
           end
 
         "raw" ->
           :gen_tcp.send(state.conn, payload)
-          {:noreply, state |> inc(:requests) |> Load.Worker.maybe_update()}
+          {:noreply, state |> inc(:requests) |> maybe_update()}
 
         _ ->
           Logger.error("[#{__MODULE__}] unknown protocol #{state.protocol}")
-          {:noreply, state |> inc(:failed) |> Load.Worker.maybe_update()}
+          {:noreply, state |> inc(:failed) |> maybe_update()}
 
       end
 
@@ -77,7 +118,7 @@ defmodule Load.Serializer do
           {:ok, conn} ->
             case :gun.await_up(conn) do
               {:ok, :http} ->
-                if state.ws do
+                if state[:ws] do
                   stream_ref = :gun.ws_upgrade(conn, state.ws)
                   state |> Map.merge(%{conn: conn, stream_ref: stream_ref})
                 else

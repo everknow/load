@@ -30,11 +30,23 @@ defmodule Load.WSHandler do
     case Jason.decode!(message) do
 
       %{"command" => "configure", "config" => config} ->
+        Logger.debug("[#{__MODULE__}] #{inspect(config)}")
 
         if config["gen"], do:
-          Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, 
-            %{os_command: config["gen"]["exe"], start_command: config["gen"]["cfg"], serializer_cfg: config["serializer"]}, [name: Gen]]
+          Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, %{
+            os_command: config["gen"]["os_command"],
+            os_dir: config["gen"]["os_dir"],
+            os_env: config["gen"]["os_env"] |> Enum.map(fn {k,v}-> {String.to_charlist(k), String.to_charlist(v)} end),
+            start_command: config["gen"]["cfg"],
+            serializer: config["serializer"],
+            common: config["common"]
+            }, [name: Gen]]
           }})
+        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
+      %{"command" => "generate", "quantity" => quantity} ->
+        Logger.debug("[#{__MODULE__}] generate quantity: #{inspect(quantity)}")
+        send(Gen, {:generate, quantity})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
 
       %{"command" => "terminate"} ->

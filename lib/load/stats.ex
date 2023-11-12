@@ -14,6 +14,8 @@ defmodule Stats do
   @impl true
   def init(args) do
 
+    Logger.debug("[#{__MODULE__}] init #{inspect(args)}")
+
     :pg.join(args.group, self())
     state = args
     |> Map.merge(%{
@@ -30,6 +32,7 @@ defmodule Stats do
 
   @impl true
   def handle_info({:update, stats}, state) do
+    if state.group == Global, do: Logger.debug("[#{__MODULE__}] handle_info #{inspect({:update, stats})}")
     stats = stats
     |> Map.new(fn {k, v} ->
       if state.stats[k] do
@@ -61,11 +64,12 @@ defmodule Stats do
   end
 
   defp maybe_update(%{"stats_interval_ms" => stats_interval_ms} = state, dest) do
+    if state.group == Global, do: Logger.debug("[#{__MODULE__}] maybe_update #{inspect(state)}")
     now = now()
     duration = now - state.last_ms
     if duration > stats_interval_ms do
       state = if state[:history] do
-        %{state | history: [{{now, make_ref()}, state.stats} | state.history]}
+        %{state | history: [{{now, make_ref()}, state.stats} | state.history] |> Enum.take(state[:history_retention] || 20)}
       else
         state
       end
@@ -75,7 +79,7 @@ defmodule Stats do
         state | last_ms: now, stats: state.stats
         |> Map.to_list()
         |> Enum.map(fn {sim, stats} ->
-          {sim, Map.merge(stats, Stats.empty())}
+          {sim, (if state.group == Global, do: stats, else: Map.merge(stats, Stats.empty()))}
         end)
         |> Enum.into(%{})
       }

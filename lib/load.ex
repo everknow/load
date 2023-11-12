@@ -19,9 +19,10 @@ defmodule Load do
   end
 
   def configure(config, address \\ :all) do
+    Logger.debug("[#{__MODULE__}] #{inspect(config)}")
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, address, %{command: "configure", config: config}})
+      GenServer.cast(pid, {:ws_send, address, %{"command" => "configure", "config" => config}})
       end)
   end
 

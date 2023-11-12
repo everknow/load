@@ -25,4 +25,6 @@ load-*.tar
 erlang
 
 load.iml
+LOCAL.md
+.cache/
 

@@ -16,13 +16,13 @@ defmodule Load.Scaler do
       tick_count: 0,
       function: case config["scale_function"] do
         "uniform" ->
-          height = config["scale_height"]  |> String.to_integer()
+          height = config["scale_height"]
           fn _x -> height end
         "ramp" ->
-          {growth_coefficient, max_height} = {config["scale_growth_coefficient"] |> Float.parse() |> elem(0), config["scale_height"] |> String.to_integer()}
+          {growth_coefficient, max_height} = {config["scale_growth_coefficient"] |> Float.parse() |> elem(0), config["scale_height"]}
           fn x -> min( round(x * growth_coefficient), max_height) end
         "square" ->
-          {width, height} = {config["scale_width"] |> String.to_integer(), config["scale_height"] |> String.to_integer()}
+          {width, height} = {config["scale_width"], config["scale_height"]}
           fn x -> rem( round(x/width), 2) * height end
       end,
       config: config |> Map.take(["worker_tick_timeunit","worker_tick_interval","stats_tick_timeunit","stats_tick_interval","sim", "hit_hosts", "rpc_port", "protocol", "statement"])
@@ -35,14 +35,15 @@ defmodule Load.Scaler do
   @impl true
   def handle_info(:rescale, state) do
     Process.send_after(self(), :rescale, state.tick_ms)
-    scale(state.function.(state.tick_count), state.config)
+    scale(state.function.(state.tick_count))
     {:noreply, %{state | tick_count: state.tick_count + 1}}
   end
 
-  def scale(count, config, address \\ :all) do
+  def scale(quantity, address \\ :all) do
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      GenServer.cast(pid, {:ws_send, address, %{command: "scale", config: config, count: count}})
+      # GenServer.cast(pid, {:ws_send, address, %{command: "scale", config: config, count: count}})
+      GenServer.cast(pid, {:ws_send, address, %{command: "generate", quantity: quantity}})
       end)
   end
 

@@ -7,12 +7,15 @@ defmodule Load.Worker do
   @default_connect_delay 200
   @req_timeout :timer.seconds(5)
 
-  def start_link(glob, args \\ []), do: GenServer.start_link(__MODULE__, glob ++ args |> Enum.into(%{}) )
+  def start_link(args, glob \\ []) do
+    Logger.debug("[#{__MODULE__}] start_link #{inspect(glob)} #{inspect(args)}") 
+    GenServer.start_link(__MODULE__, (glob |> Enum.into(%{})) |> Map.merge(args)  )
+  end
 
   @impl true
   def init(args) do
 
-    Logger.debug("init called with args: #{inspect(args)}")
+    Logger.debug("[#{__MODULE__}] init called with args: #{inspect(args)}")
 
     state = args
     |> Map.merge(%{
@@ -27,7 +30,7 @@ defmodule Load.Worker do
 
     if state[:group], do: :pg.join(state.group, self())
 
-    Logger.info("worker state: #{inspect(state)}")
+    Logger.debug("[#{__MODULE__}] worker state: #{inspect(state)}")
     connect_delay =
       if state.interval_ms do
         :rand.uniform(state.interval_ms)
@@ -44,7 +47,7 @@ defmodule Load.Worker do
   def handle_info(:connect, %{host: host, port: port} = state) do
     case state.protocol do
       "http" ->
-        case :gun.open(host |> String.to_charlist(), port, state.opts) do
+        case :gun.open(host, port, state.opts) do
           {:ok, conn} ->
             case :gun.await_up(conn) do
               {:ok, :http} ->
@@ -64,7 +67,7 @@ defmodule Load.Worker do
             {:stop, :normal, state}
         end
       "raw" ->
-        case :gun.open(host |> String.to_charlist(), port) do
+        case :gun.open(host, port) do
           {:ok, conn} ->
             Process.send_after(self(), :run, 0)
             {:noreply, %{state | conn: conn}}
@@ -107,6 +110,8 @@ defmodule Load.Worker do
   end
 
   def hit(target, headers, payload, %{conn: conn} = state) do
+
+    Logger.debug("[#{__MODULE__}] hit #{inspect({target, headers, payload})}")
     case state.protocol do
       "http" ->
         if state["ws"] do
@@ -115,22 +120,22 @@ defmodule Load.Worker do
         else
           [verb, path] = String.split(target, " ")
           case verb do
-            "POST" ->
-              Logger.debug("POST hitting http://#{state.host}:#{state.port}#{path}")
+            "post" ->
+              Logger.debug("[#{__MODULE__}] post hitting http://#{state.host}:#{state.port}#{path}")
               {latency, res} = :timer.tc(fn ->
                 post_ref = :gun.post(conn, "#{path}", headers, payload)
-                handle_http_result(post_ref, state |> inc(:requests))
+                handle_http_result(post_ref, state)
               end)
               case res do
                 {:ok, p, s} when s.avg_latency -> {:ok, p, %{s | avg_latency: (s.avg_latency + latency/1000) / 2}}
                 {:ok, p, s} -> {:ok, p, %{s | avg_latency: latency/1000}}
                 pass -> pass
               end
-            "GET" ->
-              Logger.debug("GET hitting http://#{state.host}:#{state.port}#{path}")
+            "get" ->
+              Logger.debug("[#{__MODULE__}] get hitting http://#{state.host}:#{state.port}#{path}")
               {latency, res} = :timer.tc(fn ->
                 post_ref = :gun.get(conn, "#{path}", headers)
-                handle_http_result(post_ref, state |> inc(:requests))
+                handle_http_result(post_ref, state)
               end)
               case res do
                 {:ok, p, s} when s.avg_latency -> {:ok, p, %{s | avg_latency: (s.avg_latency + latency/1000) / 2}}
@@ -138,14 +143,14 @@ defmodule Load.Worker do
                 pass -> pass
               end
             _ ->
-              {:error , "http tcp #{verb} not_implemented", state |> inc(:failed)}
+              {:error , "http tcp #{verb} not_implemented", state}
           end
         end
       "raw" ->
         :gen_tcp.send(conn, payload)
         {:ok, nil, state |> inc(:requests)}
       _ ->
-        {:error , "unknown protocol #{state.protocol}", state |> inc(:failed)}
+        {:error , "unknown protocol #{state.protocol}", state}
     end
   end
 
@@ -158,17 +163,17 @@ defmodule Load.Worker do
               {:ok, payload} ->
                 Map.get(state, :payload_process_fun, fn payload, _code, state ->
                   is_poller = state.sim |> :erlang.atom_to_binary() |> String.ends_with?("Poller")
-                  {:ok, payload, (if is_poller, do: state, else: state |> inc(:succeeded))}
+                  {:ok, payload, (if is_poller, do: state, else: state)}
                 end).(payload, code, state)
               err ->
-                {:error, err, state |> inc(:failed) }
+                {:error, err, state}
             end
 
           :else ->
-            {:error, "response code #{code}", state |> inc(:failed)}
+            {:error, "response code #{code}", state}
         end
       err->
-        {:error, err, state |> inc(:failed)}
+        {:error, err, state}
     end
 
   end

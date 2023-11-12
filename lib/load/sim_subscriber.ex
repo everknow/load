@@ -22,7 +22,8 @@ defmodule Sim.Subscriber do
   end
 
   @impl true
-  def handle_message({:register, ref}, state) do
+  def handle_message({:reg, ref}, state) do
+    Logger.debug("[#{__MODULE__}] reg #{inspect(ref)}")
     %{state | pending: state.pending |> Map.put(ref, now())}
   end
 

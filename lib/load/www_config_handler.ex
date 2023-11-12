@@ -6,34 +6,35 @@ defmodule Load.ConfigHandler do
     {:ok, data, req} = :cowboy_req.read_body(req)
     config = Jason.decode!(data)
     
-    Logger.warn("#{inspect(config)}")
+    Logger.debug("[#{__MODULE__}] init #{inspect(config)}")
     
     Load.connect(config["connect_hosts"])
 
-
-    # start a poller for this test (or 2 in case of bridge)
-
-    DynamicSupervisor.start_child(Load.Poller.Supervisor, {Load.Worker, [
-      {:sim, Sim.Poller} | (config["poller"]
+    DynamicSupervisor.start_child(Load.Poller.Supervisor, {Load.Worker,
+      
+      config["poller"]
       |> Enum.map(fn {k, v} -> {
         k |> String.to_atom(),
         if ["pos_decode", "pos_encode", "content_decode"] |> Enum.member?(k) do
-          v |> String.to_existing_atom()
+          v |> String.to_atom()#to_existing_atom()
+        else
+          v
         end
-      } end))
-    ] ++ [
-      host: config["common"]["hit_host"] |> to_charlist(),
-      port: config["common"]["hit_port"]
-    ]})
+      } end) |> Enum.into(%{
+        sim: Sim.Poller,
+        host: config["common"]["hit_host"] |> to_charlist(),
+        port: config["common"]["hit_port"]
+      })
+    })
 
-    if config["prep"], do:
-    Supervisor.start_child(Load.Supervisor, %{id: Prep, start: {GenServer, :start_link, [Load.Container, 
-      %{os_command: config["prep"]["exe"], start_command: config["prep"]["cfg"], serializer_cfg: config["serializer"]}, [name: Prep]]
-    }})
+    # if config["prep"], do:
+    # Supervisor.start_child(Load.Supervisor, %{id: Prep, start: {GenServer, :start_link, [Load.Container, 
+    #   %{os_command: config["prep"]["exe"], start_command: config["prep"]["cfg"], serializer_cfg: config["serializer"]}, [name: Prep]]
+    # }})
           
     :timer.sleep(3000)
 
-    Load.configure(config |> Map.take(["gen", "serializer"]))
+    Load.configure(config |> Map.take(["gen", "serializer", "common"]))
 
     req = :cowboy_req.reply(200, 
       %{"content-type" => "text/plain"},
