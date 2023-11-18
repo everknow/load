@@ -4,7 +4,7 @@ defmodule Load.MixProject do
   def project do
     [
       app: :load,
-      version: "0.3.2",
+      version: "0.3.3-rc.3",
       elixir: "~> 1.13",
       # build_embedded: Mix.env == :prod,
       start_permanent: Mix.env() == :prod,

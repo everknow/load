@@ -3,7 +3,7 @@ run-name: ${{ github.actor }} running release 🚀
 on:
   push:
     branches:
-      ["releases"]
+      - "releases"
 jobs:
   releases:
     runs-on: ubuntu-latest
@@ -16,8 +16,8 @@ jobs:
           fetch-depth: 0
       - name: Check Tag
         run: |
-          tag=$(grep -oP "^\W+version: \"\K[\d.]+" mix.exs)
-          if git tag -l | grep -q "^$tag$"; then echo "STOP=stop" >> $GITHUB_ENV; fi 
+          tag=$(grep -oP "^\W+version: \"\K[^\"]+" mix.exs)
+          if git tag -l | grep -q "^$tag$"; then echo "STOP=stop" >> $GITHUB_ENV; fi
           echo "TAG=$tag" >> $GITHUB_ENV
       - name: Maybe Stop
         env:
@@ -32,7 +32,7 @@ jobs:
           elixir-version: 1.14.4
       - name: Build
         run: |
-          MIX_ENV=prod mix deps.get 
+          MIX_ENV=prod mix deps.get
           MIX_ENV=prod mix release
       - name: Create archive
         run: |
@@ -42,7 +42,7 @@ jobs:
       - name: Publish the Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.TAG }}
+          tag_name: "${{ env.TAG }}"
           files: _build/prod/rel/tar/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
