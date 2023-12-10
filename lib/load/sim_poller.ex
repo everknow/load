@@ -58,13 +58,17 @@ defmodule Sim.Poller do
         case state.pending |> Map.pop(content) do
           {nil, _} ->
             state
-          {ts, pending} ->
-            Logger.debug("[#{__MODULE__}] processed: #{inspect({ts, pending})}")
+          {{ts, [wpid, pid, key]}, pending} ->
+            Logger.debug("[#{__MODULE__}] processed: #{inspect({{ts, [wpid, pid, key]}, pending})}")
             latency = now() - ts
             avg_latency = if state[:avg_latency] do
               (state.avg_latency + latency) /2
             else
               latency
+            end
+            if wpid != "" do
+              wpid = Load.to_pid(wpid)
+              send(wpid, {:ws_send, :all, %{notify: (if key != "", do: key, else: content), routing: [pid]}})
             end
             %{state | pending: pending, avg_latency: avg_latency, succeeded: state.succeeded + 1}
         end
@@ -80,14 +84,14 @@ defmodule Sim.Poller do
   defp expire(state) do
     now = now()
     count = Enum.count(state.pending)
-    pending = state.pending |> Map.reject(fn {_k, v} -> now > v + 60000 end)
+    pending = state.pending |> Map.reject(fn {_k, {v, _}} -> now > v + 60000 end)
     %{state | pending: pending, failed: state.failed + (count - Enum.count(pending))}
   end
 
   @impl true
-  def handle_message({:reg, ref}, state) do
-    Logger.debug("[#{__MODULE__}] reg #{inspect(ref)}")
-    %{state | pending: state.pending |> Map.put(ref, now())} |> inc(:requests)
+  def handle_message({:reg, ref, routing}, state) do
+    Logger.debug("[#{__MODULE__}] reg: #{inspect(ref)} routing: #{inspect(routing)}")
+    %{state | pending: state.pending |> Map.put(ref, {now(), routing})} |> inc(:requests)
   end
 
   def from_dec(x), do: String.to_integer(x)

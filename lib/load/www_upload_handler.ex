@@ -1,0 +1,22 @@
+defmodule Load.UploadHandler do
+
+  require Logger
+
+  def init(req = %{method: "POST"}, state) do
+    {:ok, data, req} = :cowboy_req.read_body(req)
+
+    file = :code.priv_dir(:load)<>"/uploaded.py"
+    File.write(file, data)
+
+    DynamicSupervisor.which_children(Load.Connection.Supervisor)
+    |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
+      send(pid, {:ws_send, :all, %{"command" => "restart_gen"}})
+    end)
+
+    req = :cowboy_req.reply(200, 
+      %{"content-type" => "text/plain"},
+      Jason.encode!(%{success: true}),
+      req)
+    {:ok, req, state}
+  end
+end

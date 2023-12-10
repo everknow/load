@@ -27,4 +27,5 @@ erlang
 load.iml
 LOCAL.md
 .cache/
+.env
 

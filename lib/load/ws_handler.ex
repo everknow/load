@@ -37,7 +37,6 @@ defmodule Load.WSHandler do
             os_command: config["gen"]["os_command"],
             os_dir: config["gen"]["os_dir"],
             os_env: config["gen"]["os_env"] |> Enum.map(fn {k,v}-> {String.to_charlist(k), String.to_charlist(v)} end),
-            start_command: config["gen"]["cfg"],
             serializer: config["serializer"],
             common: config["common"]
             }, [name: Gen]]
@@ -47,6 +46,26 @@ defmodule Load.WSHandler do
       %{"command" => "generate", "quantity" => quantity} ->
         Logger.debug("[#{__MODULE__}] generate quantity: #{inspect(quantity)}")
         send(Gen, {:generate, quantity})
+        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
+      
+      %{"command" => "create_accounts", "force" => force} ->
+        Logger.debug("[#{__MODULE__}] create_accounts force: #{inspect(force)}")
+        send(Gen, {:create_accounts, force})
+        {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
+
+      %{"command" => "restart_gen"} ->
+        config = :sys.get_state(Gen)
+        Supervisor.terminate_child(Load.Supervisor, Gen)
+        Supervisor.delete_child(Load.Supervisor, Gen)
+        Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, %{
+          os_command: "python3 uploaded.py",
+          os_dir: :code.priv_dir(:load),
+          os_env: config["os_env"],
+          serializer: config["serializer"],
+          common: config["common"]
+          }, [name: Gen]]
+        }})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
 
       %{"command" => "terminate"} ->
@@ -110,6 +129,14 @@ defmodule Load.WSHandler do
         Logger.debug(next_id_batch, label: "received batch")
         send(IdAllocated, {:next_id_batch, next_id_batch})
         {:ok, state}
+
+      %{"notify" => message, "routing" => [pid64]} ->
+        Logger.debug("[#{__MODULE__}] notify: #{message}")
+        if pid64 != "" do
+          pid = Load.to_pid(pid64)
+          send(pid, {:notify, message})
+        end
+        {:ok, state}
       _ ->
         # IO.puts("received #{message}")
         {:reply, {:text, "invalid"}, state}
@@ -117,21 +144,15 @@ defmodule Load.WSHandler do
   end
 
   @impl true
-  def websocket_info({:notify, message}, state) do
-    Logger.debug("forwarding message")
-    {:reply, {:text, Jason.encode!(%{notify: message})}, state}
+  def websocket_info({:ws_send, message}, state) do
+    Logger.info("[#{__MODULE__}] ws_send message: #{inspect(message)}")
+    {:reply, {:text, Jason.encode!(message)}, state}
   end
 
   @impl true
   def websocket_info({:update, stats}, state) do
     Logger.debug("forwarding stats")
     {:reply, {:text, Jason.encode!(%{update: stats})}, state}
-  end
-
-  @impl true
-  def websocket_info({:reg, payload}, state) do
-    Logger.debug("forwarding reg result")
-    {:reply, {:text, Jason.encode!(%{reg: payload})}, state}
   end
 
   @impl true

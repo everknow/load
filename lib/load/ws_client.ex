@@ -37,17 +37,16 @@ defmodule Load.WSClient do
         end)
         :pg.get_local_members(Global)
         |> Enum.each(&send(&1, {:update, stats }))
-      %{"reg" => ref} -> # %{"uuid" => uuid, "result" => result}} ->
+      %{"reg" => ref, "routing" => routing} ->
         Logger.debug("[#{__MODULE__}] reg #{ref} sent to #{inspect(:pg.get_local_members("pollers"))}")
         :pg.get_local_members("pollers")
-        |> Enum.each(&send(&1, {:reg, ref}))
-        # :ets.insert(RegResult, {uuid, result})
+        |> Enum.each(&send(&1, {:reg, ref, routing}))
       %{"ask_new_batch" => _} ->
         next_id_batch = GenServer.call(IdSequence, :next_id_batch)
         :gun.ws_send(state.conn, state.stream_ref, {:text, Jason.encode!(%{"next_id_batch" => next_id_batch})})
-      %{"prep" => message} ->
-        Logger.info("[#{__MODULE__}] prep #{message}")
-        send(Prep, {:prep, message})
+      %{"api" => message, "routing"=> [pid, key], "arg0" => arg0} ->
+        Logger.warn("[#{__MODULE__}] received: #{inspect(%{"api" => message, "routing"=> [pid, key], "arg0" => arg0})}")
+        send(Gen, {:api, Load.self64(), pid, key, arg0, message})
       unknown ->
         Logger.error("[#{__MODULE__}] invalid #{inspect(unknown)}")
     end
@@ -73,6 +72,14 @@ defmodule Load.WSClient do
   @impl true
   def handle_info({:gun_upgrade, _conn, _mon, _type, _info}, state) do
     Logger.warn("[#{__MODULE__}] Connection upgraded")
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:ws_send, address, message}, %{stream_ref: stream_ref} = state) do
+    if address == :all or address == state.address do
+      :ok = :gun.ws_send(state.conn, stream_ref, {:text, Jason.encode!(message)})
+    end
     {:noreply, state}
   end
 

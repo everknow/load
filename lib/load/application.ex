@@ -5,7 +5,7 @@ defmodule Load.Application do
   @spec start(any, any) :: {:error, any} | {:ok, pid}
   def start(_type, _args) do
 
-    :ets.new(RegResult, [:named_table, :public])
+    :ets.new(Accounts, [:named_table, :public])
 
     {:ok, _} = :cowboy.start_clear(:my_http_listener,
         [{:port,  Application.get_env(:load, :ws_port, 8888)}],
@@ -33,13 +33,13 @@ defmodule Load.Application do
       {:_,
        [
          {"/ws", Load.WSHandler, []},
-         {"/action", Load.ActionHandler, []},
          {"/config", Load.ConfigHandler, []},
-         {"/result", Load.ResultHandler, []},
          {"/proxy", Load.ProxyHandler, []},
          {"/start", Load.StartHandler, []},
          {"/health", Load.HealthHandler, []},
          {"/stats", Load.StatsHandler, []},
+         {"/upload", Load.UploadHandler, []},
+         {"/create_accounts", Load.CreateAccountsHandler, []},
          {"/example/echo", Plug.Cowboy.Handler, {Example.EchoRouter, []}},
          {"/example/async", Plug.Cowboy.Handler, {Example.AsyncRouter, []}},
          {"/example/ws_async", Plug.Cowboy.Handler, {Example.AsyncWSHandler, []}}

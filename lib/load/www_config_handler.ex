@@ -26,11 +26,6 @@ defmodule Load.ConfigHandler do
         port: config["common"]["hit_port"]
       })
     })
-
-    # if config["prep"], do:
-    # Supervisor.start_child(Load.Supervisor, %{id: Prep, start: {GenServer, :start_link, [Load.Container, 
-    #   %{os_command: config["prep"]["exe"], start_command: config["prep"]["cfg"], serializer_cfg: config["serializer"]}, [name: Prep]]
-    # }})
           
     :timer.sleep(3000)
 

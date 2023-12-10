@@ -46,8 +46,18 @@ defmodule Load.Serializer do
   end
 
   @impl true
-  def handle_info({:hit, payload}, state) do
-    Logger.debug("[#{__MODULE__}] #{inspect(payload)} #{inspect(state)}")
+  def handle_info({:gun_down, _, :http, :closed, []}, state) do
+    {:noreply, %{state | conn: nil}}
+  end
+
+  @impl true
+  def handle_info({:gun_up, _, :http}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:hit, payload, routing}, state) do
+    Logger.info("[#{__MODULE__}] handle_info payload: #{inspect(payload)} routing: #{inspect(routing)} state: #{inspect(state)}")
     state = if state.conn, do: state, else: connect(state)
 
     if state.conn do
@@ -68,9 +78,9 @@ defmodule Load.Serializer do
                     case :gun.await_body(state.conn, post_ref, @req_timeout) do
                       {:ok, payload} ->
                         ref = get_in(Jason.decode!(payload), state.pos_selector)
-                        Logger.debug("[#{__MODULE__}] ref #{inspect(ref)}")
+                        Logger.info("[#{__MODULE__}] ref: #{inspect(ref)} routing: #{inspect(routing)}")
                         :pg.get_local_members(WS)
-                        |> Enum.each(&send(&1, {:reg, ref}))
+                        |> Enum.each(&send(&1, {:ws_send, %{reg: ref, routing: routing}}))
                         {:ok, payload, state |> inc(:succeeded)}
                       err ->
                         {:error, err, state |> inc(:failed) }

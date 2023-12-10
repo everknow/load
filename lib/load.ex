@@ -30,6 +30,10 @@ defmodule Load do
 
   def subscribe(pid), do: :pg.join(Subscriber, pid)
 
+  def is_master(), do: length(DynamicSupervisor.which_children(Load.Connection.Supervisor)) > 0
+  def self64(), do: self() |> :erlang.term_to_binary() |> Base.encode64()
+  def to_pid(pid64), do: pid64 |> Base.decode64!() |> :erlang.binary_to_term()
+
   def h, do:
     IO.puts("""
     Commands available: - parameters with ? suffix are optional\n
