@@ -10,22 +10,24 @@ defmodule Load.ConfigHandler do
     
     Load.connect(config["connect_hosts"])
 
-    DynamicSupervisor.start_child(Load.Poller.Supervisor, {Load.Worker,
-      
-      config["poller"]
-      |> Enum.map(fn {k, v} -> {
-        k |> String.to_atom(),
-        if ["pos_decode", "pos_encode", "content_decode"] |> Enum.member?(k) do
-          v |> String.to_atom()#to_existing_atom()
-        else
-          v
-        end
-      } end) |> Enum.into(%{
-        sim: Sim.Poller,
-        host: config["common"]["hit_host"] |> to_charlist(),
-        port: config["common"]["hit_port"]
+    if [] == DynamicSupervisor.which_children(Load.Poller.Supervisor) do
+      DynamicSupervisor.start_child(Load.Poller.Supervisor, {Load.Worker,
+        
+        config["poller"]
+        |> Enum.map(fn {k, v} -> {
+          k |> String.to_atom(),
+          if ["pos_decode", "pos_encode", "content_decode"] |> Enum.member?(k) do
+            v |> String.to_atom()#to_existing_atom()
+          else
+            v
+          end
+        } end) |> Enum.into(%{
+          sim: Sim.Poller,
+          host: config["common"]["hit_host"] |> to_charlist(),
+          port: config["common"]["hit_port"]
+        })
       })
-    })
+    end
           
     :timer.sleep(3000)
 

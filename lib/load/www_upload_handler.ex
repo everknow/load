@@ -5,12 +5,12 @@ defmodule Load.UploadHandler do
   def init(req = %{method: "POST"}, state) do
     {:ok, data, req} = :cowboy_req.read_body(req)
 
-    file = :code.priv_dir(:load)<>"/uploaded.py"
+    file = (:code.priv_dir(:load) |> List.to_string()) <> "/uploaded.py"
     File.write(file, data)
 
     DynamicSupervisor.which_children(Load.Connection.Supervisor)
     |> Enum.each(fn {:undefined, pid, :worker, [Load.WSClient]} ->
-      send(pid, {:ws_send, :all, %{"command" => "restart_gen"}})
+      send(pid, {:ws_send, :all, %{"command" => "restart_gen", "config" => %{"os_command" => "python3 uploaded.py"}}})
     end)
 
     req = :cowboy_req.reply(200, 

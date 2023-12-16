@@ -36,6 +36,7 @@ defmodule Load.Application do
          {"/config", Load.ConfigHandler, []},
          {"/proxy", Load.ProxyHandler, []},
          {"/start", Load.StartHandler, []},
+         {"/stop", Load.StopHandler, []},
          {"/health", Load.HealthHandler, []},
          {"/stats", Load.StatsHandler, []},
          {"/upload", Load.UploadHandler, []},

@@ -54,18 +54,29 @@ defmodule Load.WSHandler do
         send(Gen, {:create_accounts, force})
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
 
-      %{"command" => "restart_gen"} ->
-        config = :sys.get_state(Gen)
-        Supervisor.terminate_child(Load.Supervisor, Gen)
-        Supervisor.delete_child(Load.Supervisor, Gen)
-        Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, %{
-          os_command: "python3 uploaded.py",
-          os_dir: :code.priv_dir(:load),
-          os_env: config["os_env"],
-          serializer: config["serializer"],
-          common: config["common"]
-          }, [name: Gen]]
-        }})
+      %{"command" => "restart_gen", "config" => changes} ->
+        if Process.whereis(Scaler) do
+          Supervisor.terminate_child(Load.Supervisor, Scaler)
+          Supervisor.delete_child(Load.Supervisor, Scaler)
+          Supervisor.start_child(Load.Supervisor, %{id: Scaler, start: {GenServer, :start_link, [Load.Scaler, %{}, [name: Scaler]]}})
+        end
+        if Process.whereis(Gen) do
+          config = :sys.get_state(Gen)
+          Supervisor.terminate_child(Load.Supervisor, Gen)
+          Supervisor.delete_child(Load.Supervisor, Gen)
+          Supervisor.start_child(Load.Supervisor, %{id: Gen, start: {GenServer, :start_link, [Load.Container, %{
+            os_command: config.os_command,
+            os_dir: config.os_dir,
+            os_env: config.os_env,
+            serializer: config.serializer,
+            common: config.common
+            } |> Map.merge(changes |> Map.new(fn {k,v} -> {String.to_atom(k),v} end), fn _k,v1,v2 -> if v2, do: v2, else: v1 end), [name: Gen]]
+          }})
+          Supervisor.which_children(Load.Hitter.Supervisor)
+          |> Enum.each(fn {_, pid, :worker, _} ->
+            DynamicSupervisor.terminate_child(Load.Hitter.Supervisor, pid)
+          end)
+        end
         {:reply, {:text, Jason.encode!(%{ok: :ok})}, state}
 
       %{"command" => "terminate"} ->
